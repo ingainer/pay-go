@@ -214,8 +214,8 @@
 <body>
     <div class="payment-container">
         <div class="logo">⚡</div>
-        <h1>Secure Payment</h1>
-        <p class="subtitle">Connect your Phantom wallet to pay with USDC</p>
+        <h1>Premium Content Access</h1>
+        <p class="subtitle" id="subtitle">Connect your Solana wallet to access premium content</p>
 
         <div class="network-badge">Solana Mainnet</div>
 
@@ -225,13 +225,13 @@
         </div>
 
         <button id="payButton" class="pay-button" onclick="initiatePayment()">
-            Pay Now
+            Pay with Wallet
         </button>
 
         <div id="statusMessage" class="status-message"></div>
 
         <p class="info-text">
-            Powered by x402 protocol on Solana blockchain. Fast, secure, and affordable payments.
+            Powered by x402 protocol. Payment required to access content. Your wallet will be prompted to approve the transaction.
         </p>
 
         <div class="features">
@@ -389,13 +389,40 @@
             }
         }
 
-        // Check for error parameter on page load
+        // Check wallet availability and handle page load
         window.addEventListener('DOMContentLoaded', () => {
+            const statusMessage = document.getElementById('statusMessage');
+            const button = document.getElementById('payButton');
+            const subtitle = document.getElementById('subtitle');
+
+            // Check for wallet
+            if (!window.solana) {
+                statusMessage.textContent = '⚠️ Solana wallet not detected. Please install Phantom wallet to continue.';
+                statusMessage.className = 'status-message error';
+                button.disabled = true;
+                button.innerHTML = 'Wallet Not Found';
+                subtitle.textContent = 'Please install Phantom wallet from phantom.app';
+
+                // Add install button
+                const installLink = document.createElement('a');
+                installLink.href = 'https://phantom.app/';
+                installLink.target = '_blank';
+                installLink.style.display = 'block';
+                installLink.style.marginTop = '16px';
+                installLink.style.color = '#667eea';
+                installLink.style.fontWeight = '600';
+                installLink.textContent = 'Install Phantom Wallet →';
+                statusMessage.appendChild(installLink);
+            } else {
+                statusMessage.textContent = '✓ Wallet detected! Ready to pay.';
+                statusMessage.className = 'status-message success';
+            }
+
+            // Check for error parameter
             const urlParams = new URLSearchParams(window.location.search);
             const error = urlParams.get('error');
 
             if (error === 'payment_required') {
-                const statusMessage = document.getElementById('statusMessage');
                 statusMessage.textContent = '⚠️ Payment required to access content';
                 statusMessage.className = 'status-message error';
             }

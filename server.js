@@ -37,27 +37,45 @@ function generatePaymentToken() {
 
 // Routes
 app.get('/', (req, res) => {
+  // Main page - always accessible, shows payment UI
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Protected success page - requires valid payment token
-app.get('/success', (req, res) => {
+// Protected content page - returns 402 if not paid
+app.get('/content', (req, res) => {
   const token = req.query.token;
 
   // Check if token is valid
   if (!token || !validTokens.has(token)) {
-    // Redirect to payment page if no valid token
-    return res.redirect('/?error=payment_required');
+    // Return 402 Payment Required with payment details
+    return res.status(402).json({
+      error: 'Payment Required',
+      message: 'Please complete payment to access this resource',
+      paymentDetails: {
+        amount: '0.01',
+        currency: 'USDC',
+        network: SOLANA_NETWORK,
+        recipient: WALLET_ADDRESS,
+        mint: USDC_MINT,
+        facilitator: FACILITATOR_URL
+      },
+      instructions: {
+        step1: 'Connect your Solana wallet (Phantom, Solflare, etc.)',
+        step2: 'Send 0.01 USDC to the recipient address',
+        step3: 'Submit your transaction signature to /api/payment/verify'
+      }
+    });
   }
 
   // Token is valid, consume it (one-time use)
   validTokens.delete(token);
 
+  // Return success page with premium content
   res.sendFile(path.join(__dirname, 'public', 'success.html'));
 });
 
-// Payment initiation endpoint
-app.post('/api/payment/initiate', async (req, res) => {
+// Get payment details (x402 challenge)
+app.get('/api/payment/challenge', async (req, res) => {
   try {
     // Return 402 Payment Required with Solana payment details
     res.status(402).json({
@@ -71,20 +89,19 @@ app.post('/api/payment/initiate', async (req, res) => {
         mint: USDC_MINT,
         facilitator: FACILITATOR_URL
       },
-      // Instructions for payment
       instructions: {
         step1: 'Connect your Solana wallet (Phantom, Solflare, etc.)',
         step2: 'Send 0.01 USDC to the recipient address',
-        step3: 'Submit your transaction signature below'
+        step3: 'Submit your transaction signature to /api/payment/verify'
       }
     });
   } catch (error) {
-    console.error('Payment initiation error:', error);
-    res.status(500).json({ error: 'Payment initiation failed' });
+    console.error('Payment challenge error:', error);
+    res.status(500).json({ error: 'Payment challenge failed' });
   }
 });
 
-// Payment verification endpoint
+// Payment verification endpoint - verifies through facilitator
 app.post('/api/payment/verify', async (req, res) => {
   try {
     const { signature, walletAddress } = req.body;
@@ -100,7 +117,7 @@ app.post('/api/payment/verify', async (req, res) => {
     console.log('  Signature:', signature.substring(0, 20) + '...');
     console.log('  From:', walletAddress);
 
-    // Verify the transaction on Solana blockchain
+    // First, verify transaction on-chain
     const { Connection, PublicKey } = require('@solana/web3.js');
     const connection = new Connection(
       SOLANA_NETWORK === 'mainnet-beta'
@@ -129,7 +146,38 @@ app.post('/api/payment/verify', async (req, res) => {
       });
     }
 
-    // Parse transaction to verify payment details
+    // Verify with PayAI facilitator
+    console.log('🔄 Verifying with PayAI facilitator...');
+
+    try {
+      const facilitatorResponse = await fetch(`${FACILITATOR_URL}/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          network: 'solana',
+          signature: signature,
+          recipient: WALLET_ADDRESS,
+          amount: '0.01',
+          currency: 'USDC',
+          mint: USDC_MINT
+        })
+      });
+
+      const facilitatorData = await facilitatorResponse.json();
+
+      if (facilitatorResponse.ok && facilitatorData.verified) {
+        console.log('✅ Payment verified by facilitator');
+      } else {
+        console.log('⚠️ Facilitator verification inconclusive, using on-chain verification');
+      }
+    } catch (facilitatorError) {
+      console.log('⚠️ Facilitator unavailable, falling back to on-chain verification');
+      console.error('Facilitator error:', facilitatorError.message);
+    }
+
+    // Parse transaction to verify payment details on-chain
     const postBalances = tx.meta.postTokenBalances || [];
     const preBalances = tx.meta.preTokenBalances || [];
 
@@ -151,7 +199,7 @@ app.post('/api/payment/verify', async (req, res) => {
           const accountKey = tx.transaction.message.accountKeys[postBalance.accountIndex];
           if (accountKey && change >= expectedAmount * 0.99) { // Allow 1% tolerance
             recipientReceived = true;
-            console.log('✅ Payment verified: ', change / Math.pow(10, 6), 'USDC received');
+            console.log('✅ On-chain verification: ', change / Math.pow(10, 6), 'USDC received');
           }
         }
       }
@@ -166,7 +214,7 @@ app.post('/api/payment/verify', async (req, res) => {
 
     console.log('✅ Payment verified successfully');
 
-    // Generate one-time token for accessing success page
+    // Generate one-time token for accessing content
     const token = generatePaymentToken();
     validTokens.add(token);
 
@@ -179,7 +227,7 @@ app.post('/api/payment/verify', async (req, res) => {
       status: 'success',
       message: 'Payment verified',
       token: token,
-      redirectUrl: `/success?token=${token}`
+      redirectUrl: `/content?token=${token}`
     });
 
   } catch (error) {
@@ -191,24 +239,6 @@ app.post('/api/payment/verify', async (req, res) => {
   }
 });
 
-// Demo payment endpoint (for testing - REMOVE IN PRODUCTION)
-app.post('/api/payment/demo', (req, res) => {
-  // Generate token for demo/testing purposes
-  const token = generatePaymentToken();
-  validTokens.add(token);
-
-  setTimeout(() => {
-    validTokens.delete(token);
-  }, 5 * 60 * 1000);
-
-  res.json({
-    status: 'success',
-    message: 'Demo payment completed',
-    token: token,
-    redirectUrl: `/success?token=${token}`,
-    note: 'This is a demo endpoint for testing. Remove in production.'
-  });
-});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
