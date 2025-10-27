@@ -180,15 +180,32 @@ app.post('/api/payment/verify', async (req, res) => {
       'confirmed'
     );
 
-    // Get transaction details
-    const tx = await connection.getTransaction(signature, {
-      maxSupportedTransactionVersion: 0
-    });
+    // Get transaction details with retry logic (blockchain propagation)
+    let tx = null;
+    let retries = 3;
+
+    for (let i = 0; i < retries; i++) {
+      console.log(`🔍 Attempt ${i + 1}/${retries} to fetch transaction...`);
+      tx = await connection.getTransaction(signature, {
+        maxSupportedTransactionVersion: 0
+      });
+
+      if (tx) {
+        console.log('✅ Transaction found on blockchain');
+        break;
+      }
+
+      if (i < retries - 1) {
+        console.log('⏳ Transaction not found yet, waiting 1 second...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
 
     if (!tx) {
+      console.error('❌ Transaction not found after all retries');
       return res.status(400).json({
         error: 'Transaction not found',
-        message: 'Transaction not found on blockchain'
+        message: 'Transaction not found on blockchain after multiple attempts. Please try again.'
       });
     }
 

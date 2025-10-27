@@ -337,11 +337,17 @@
                 const { signature } = await window.solana.signAndSendTransaction(transaction);
                 console.log('🟢 [SUCCESS] Transaction sent! Signature:', signature);
 
-                statusMessage.textContent = '⏳ Confirming transaction...';
+                statusMessage.textContent = '⏳ Waiting for blockchain confirmation...';
                 statusMessage.className = 'status-message info';
                 button.innerHTML = '<span class="loader"></span>Confirming...';
 
-                console.log('🔵 [DEBUG] Transaction sent via wallet, signature:', signature);
+                console.log('🔵 [DEBUG] Transaction sent, waiting for confirmation...');
+
+                // Wait for transaction to be confirmed on-chain (Solana is fast ~400ms)
+                // Give it a bit more time to be queryable via RPC
+                console.log('🔵 [DEBUG] Waiting 2 seconds for blockchain propagation...');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                console.log('🟢 [SUCCESS] Wait complete, transaction should be on-chain now');
 
                 console.log('🔵 [DEBUG] Verifying payment with backend...');
                 // Verify payment with backend
