@@ -33,7 +33,7 @@ console.log('💰 Payment: 0.01 USDC');
 // Initialize X402 Payment Handler
 const x402Handler = new X402PaymentHandler({
   facilitatorUrl: FACILITATOR_URL,
-  recipient: WALLET_ADDRESS,
+  treasuryAddress: WALLET_ADDRESS,
   network: SOLANA_NETWORK === 'mainnet-beta' ? 'solana' : 'solana-devnet'
 });
 

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solana USDC Payment Gateway</title>
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: rgba(255, 255, 255, 0.95);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .payment-container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 48px;
+            max-width: 480px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 32px;
+            font-size: 42px;
+        }
+
+        h1 {
+            color: #1a202c;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            color: #718096;
+            font-size: 16px;
+            margin-bottom: 32px;
+        }
+
+        .network-badge {
+            display: inline-block;
+            background: #d6bcfa;
+            color: #553c9a;
+            padding: 8px 16px;
+            border-radius: 24px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .amount-display {
+            background: #f7fafc;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 32px;
+        }
+
+        .amount {
+            font-size: 56px;
+            font-weight: 800;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+
+        .currency {
+            color: #718096;
+            font-size: 20px;
+            font-weight: 500;
+        }
+
+        .pay-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 18px 48px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .pay-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .pay-button:active {
+            transform: translateY(0);
+        }
+
+        .pay-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .info-text {
+            color: #a0aec0;
+            font-size: 14px;
+            margin-top: 24px;
+            line-height: 1.6;
+        }
+
+        .status-message {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            display: none;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        .status-message a {
+            display: inline-block;
+            margin-top: 8px;
+            transition: opacity 0.2s;
+        }
+
+        .status-message a:hover {
+            opacity: 0.8;
+        }
+
+        .status-message.success {
+            background: #c6f6d5;
+            color: #22543d;
+            display: block;
+        }
+
+        .status-message.error {
+            background: #fed7d7;
+            color: #742a2a;
+            display: block;
+        }
+
+        .status-message.info {
+            background: #bee3f8;
+            color: #2c5282;
+            display: block;
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="payment-container">
+        <div class="logo">⚡</div>
+        <h1>Premium Content Access</h1>
+        <p class="subtitle" id="subtitle">Connect your Solana wallet to access premium content</p>
+
+        <div class="network-badge">Solana Mainnet</div>
+
+        <div class="amount-display">
+            <div class="amount">0.01</div>
+            <div class="currency">USDC</div>
+        </div>
+
+        <button id="payButton" class="pay-button" onclick="initiatePayment()">
+            Pay with Wallet
+        </button>
+
+        <div id="statusMessage" class="status-message"></div>
+
+        <p class="info-text">
+            Powered by x402 protocol. Payment required to access content. Your wallet will be prompted to approve the transaction.
+        </p>
+    </div>
+
+    <script>
+        async function initiatePayment() {
+            console.log('🔵 [DEBUG] initiatePayment() called');
+            const button = document.getElementById('payButton');
+            const statusMessage = document.getElementById('statusMessage');
+
+            console.log('🔵 [DEBUG] Button element:', button);
+            console.log('🔵 [DEBUG] Status message element:', statusMessage);
+
+            // Disable button and show loading state
+            button.disabled = true;
+            button.innerHTML = '<span class="loader"></span>Connecting wallet...';
+            statusMessage.style.display = 'none';
+            statusMessage.className = 'status-message';
+
+            console.log('🔵 [DEBUG] Button disabled, showing loading state');
+
+            try {
+                console.log('🔵 [DEBUG] Checking for Solana wallet...');
+                console.log('🔵 [DEBUG] window.solana:', window.solana);
+                console.log('🔵 [DEBUG] window.solana?.isPhantom:', window.solana?.isPhantom);
+
+                // Check if Solana wallet is available
+                if (!window.solana) {
+                    console.error('🔴 [ERROR] No Solana wallet detected');
+                    throw new Error('Please install Phantom wallet or another Solana wallet');
+                }
+
+                console.log('🟢 [SUCCESS] Solana wallet detected!');
+                console.log('🔵 [DEBUG] Attempting to connect to wallet...');
+
+                // Connect to wallet
+                const resp = await window.solana.connect();
+                console.log('🟢 [SUCCESS] Wallet connected!', resp);
+
+                const walletPublicKey = resp.publicKey.toString();
+                console.log('🔵 [DEBUG] Wallet public key:', walletPublicKey);
+
+                statusMessage.textContent = '💳 Wallet connected! Requesting transaction...';
+                statusMessage.className = 'status-message info';
+                button.innerHTML = '<span class="loader"></span>Creating transaction...';
+
+                console.log('🔵 [DEBUG] Requesting transaction from backend...');
+                // Request transaction from backend (backend handles RPC)
+                const txResponse = await fetch('/api/payment/create-transaction', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        walletAddress: walletPublicKey
+                    })
+                });
+
+                if (!txResponse.ok) {
+                    const error = await txResponse.json();
+
+                    // Special handling for insufficient balance
+                    if (error.error === 'Insufficient USDC balance') {
+                        console.error('🔴 [ERROR] Insufficient USDC balance:', error);
+                        console.log('🔵 [DEBUG] Setting error message on UI...');
+
+                        statusMessage.innerHTML = `
+                            <strong>⚠️ Insufficient USDC Balance</strong><br>
+                            You need at least 0.01 USDC to access this content.<br>
+                            ${error.balance !== undefined ? `Current balance: ${error.balance} USDC<br>` : ''}
+                            <a href="https://jup.ag/swap/SOL-USDC" target="_blank" style="color: #667eea; font-weight: 600; text-decoration: none;">
+                                Get USDC on Jupiter Exchange →
+                            </a>
+                        `;
+                        statusMessage.className = 'status-message error';
+                        statusMessage.style.display = 'block';
+
+                        console.log('🔵 [DEBUG] statusMessage.innerHTML:', statusMessage.innerHTML);
+                        console.log('🔵 [DEBUG] statusMessage.className:', statusMessage.className);
+                        console.log('🔵 [DEBUG] statusMessage.style.display:', statusMessage.style.display);
+
+                        button.disabled = false;
+                        button.innerHTML = 'Pay with Wallet';
+
+                        console.log('🟢 [SUCCESS] Error message displayed to user');
+                        return;
+                    }
+
+                    throw new Error(error.message || 'Failed to create transaction');
+                }
+
+                const txData = await txResponse.json();
+                console.log('🟢 [SUCCESS] Transaction received from backend');
+
+                statusMessage.textContent = '📝 Please approve transaction in wallet...';
+                button.innerHTML = '<span class="loader"></span>Waiting for approval...';
+
+                console.log('🔵 [DEBUG] Deserializing transaction...');
+                // Deserialize the transaction from backend (browser-compatible)
+                const transactionBuffer = Uint8Array.from(
+                    atob(txData.transaction),  // atob() decodes base64 in browser
+                    c => c.charCodeAt(0)
+                );
+                const transaction = solanaWeb3.Transaction.from(transactionBuffer);
+                console.log('🔵 [DEBUG] Transaction deserialized');
+
+                console.log('🔵 [DEBUG] Requesting signature from wallet...');
+                // Sign and send transaction using wallet's connection
+                const { signature } = await window.solana.signAndSendTransaction(transaction);
+                console.log('🟢 [SUCCESS] Transaction sent! Signature:', signature);
+
+                statusMessage.textContent = '⏳ Waiting for blockchain confirmation...';
+                statusMessage.className = 'status-message info';
+                button.innerHTML = '<span class="loader"></span>Confirming...';
+
+                console.log('🔵 [DEBUG] Transaction sent, waiting for confirmation...');
+
+                // Wait for transaction to be confirmed on-chain (Solana is fast ~400ms)
+                // Give it a bit more time to be queryable via RPC
+                console.log('🔵 [DEBUG] Waiting 2 seconds for blockchain propagation...');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                console.log('🟢 [SUCCESS] Wait complete, transaction should be on-chain now');
+
+                console.log('🔵 [DEBUG] Verifying payment with backend...');
+                // Verify payment with backend
+                const verifyResponse = await fetch('/api/payment/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        signature: signature,
+                        walletAddress: walletPublicKey
+                    })
+                });
+
+                console.log('🔵 [DEBUG] Verify response status:', verifyResponse.status);
+                const verifyData = await verifyResponse.json();
+                console.log('🔵 [DEBUG] Verify response data:', verifyData);
+
+                if (verifyResponse.ok && verifyData.status === 'success') {
+                    console.log('🟢 [SUCCESS] Payment verified by backend!');
+                    // Payment successful
+                    statusMessage.textContent = '✓ Payment successful! Redirecting to premium content...';
+                    statusMessage.className = 'status-message success';
+
+                    console.log('🔵 [DEBUG] Redirecting to:', verifyData.redirectUrl);
+                    // Redirect to success page with token
+                    setTimeout(() => {
+                        window.location.href = verifyData.redirectUrl;
+                    }, 1500);
+                } else {
+                    console.error('🔴 [ERROR] Verification failed:', verifyData);
+                    throw new Error(verifyData.message || 'Payment verification failed');
+                }
+            } catch (error) {
+                console.error('🔴 [ERROR] Payment error:', error);
+                console.error('🔴 [ERROR] Error stack:', error.stack);
+                let errorMessage = '✗ Payment failed. ';
+
+                if (error.message.includes('install')) {
+                    errorMessage += 'Please install Phantom wallet.';
+                } else if (error.message.includes('User rejected')) {
+                    errorMessage += 'Transaction was cancelled.';
+                } else if (error.message.includes('Attempt to debit')) {
+                    errorMessage += 'Insufficient USDC balance.';
+                } else {
+                    errorMessage += error.message || 'Please try again.';
+                }
+
+                console.error('🔴 [ERROR] Displaying error to user:', errorMessage);
+                statusMessage.textContent = errorMessage;
+                statusMessage.className = 'status-message error';
+                button.disabled = false;
+                button.innerHTML = 'Pay with Wallet';
+            }
+        }
+
+        // Check wallet availability and handle page load
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('🔵 [DEBUG] Page loaded, checking for wallet...');
+            const statusMessage = document.getElementById('statusMessage');
+            const button = document.getElementById('payButton');
+            const subtitle = document.getElementById('subtitle');
+
+            console.log('🔵 [DEBUG] Checking window.solana...');
+            console.log('🔵 [DEBUG] window.solana exists:', !!window.solana);
+
+            // Check for wallet
+            if (!window.solana) {
+                console.log('🔴 [ERROR] No Solana wallet found');
+                statusMessage.textContent = '⚠️ Solana wallet not detected. Please install Phantom wallet to continue.';
+                statusMessage.className = 'status-message error';
+                button.disabled = true;
+                button.innerHTML = 'Wallet Not Found';
+                subtitle.textContent = 'Please install Phantom wallet from phantom.app';
+
+                // Add install button
+                const installLink = document.createElement('a');
+                installLink.href = 'https://chrome.google.com/webstore/detail/phantom/bfnaelmomeimhlpmgjnjophhpkkoljpa';
+                installLink.target = '_blank';
+                installLink.style.display = 'block';
+                installLink.style.marginTop = '16px';
+                installLink.style.color = '#667eea';
+                installLink.style.fontWeight = '600';
+                installLink.textContent = 'Install Phantom Wallet →';
+                statusMessage.appendChild(installLink);
+            } else {
+                console.log('🟢 [SUCCESS] Solana wallet found!');
+                console.log('🔵 [DEBUG] Wallet details:', {
+                    isPhantom: window.solana.isPhantom,
+                    publicKey: window.solana.publicKey,
+                    isConnected: window.solana.isConnected
+                });
+                statusMessage.textContent = '✓ Wallet detected! Ready to pay.';
+                statusMessage.className = 'status-message success';
+            }
+
+            // Check for error parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+
+            if (error === 'payment_required') {
+                console.log('⚠️ [WARNING] Payment required error in URL');
+                statusMessage.textContent = '⚠️ Payment required to access content';
+                statusMessage.className = 'status-message error';
+            }
+
+            console.log('🔵 [DEBUG] Page initialization complete');
+        });
+    </script>
+</body>
+</html>
