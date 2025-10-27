@@ -114,6 +114,40 @@ app.post('/api/payment/create-transaction', async (req, res) => {
       recipientPublicKey
     );
 
+    console.log('🔍 Checking if token accounts exist...');
+
+    // Check if sender's USDC account exists
+    const senderAccountInfo = await connection.getAccountInfo(senderTokenAccount);
+
+    if (!senderAccountInfo) {
+      console.error('❌ Sender does not have a USDC token account!');
+      return res.status(400).json({
+        error: 'No USDC account',
+        message: 'Your wallet does not have a USDC token account. Please receive some USDC first to create the account, or the transaction will include an instruction to create it.',
+        senderTokenAccount: senderTokenAccount.toString()
+      });
+    }
+
+    console.log('✅ Sender has USDC token account');
+
+    // Check sender's USDC balance
+    const { getAccount } = require('@solana/spl-token');
+    try {
+      const senderAccount = await getAccount(connection, senderTokenAccount);
+      const balance = Number(senderAccount.amount) / Math.pow(10, 6);
+      console.log(`💰 Sender USDC balance: ${balance} USDC`);
+
+      if (balance < 0.01) {
+        return res.status(400).json({
+          error: 'Insufficient USDC balance',
+          message: `You need at least 0.01 USDC. Current balance: ${balance} USDC`,
+          balance: balance
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error checking balance:', error.message);
+    }
+
     // Create transfer instruction for 0.01 USDC (10000 microUSDC)
     const transferInstruction = createTransferInstruction(
       senderTokenAccount,
@@ -211,9 +245,15 @@ app.post('/api/payment/verify', async (req, res) => {
 
     // Verify transaction was successful
     if (tx.meta.err) {
+      console.error('❌ Transaction failed on-chain:');
+      console.error('Error details:', JSON.stringify(tx.meta.err, null, 2));
+      console.error('Transaction logs:', tx.meta.logMessages);
+
       return res.status(400).json({
         error: 'Transaction failed',
-        message: 'Transaction failed on blockchain'
+        message: 'Transaction failed on blockchain',
+        details: tx.meta.err,
+        logs: tx.meta.logMessages
       });
     }
 
