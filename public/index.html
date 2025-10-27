@@ -324,10 +324,12 @@
                 button.innerHTML = '<span class="loader"></span>Waiting for approval...';
 
                 console.log('🔵 [DEBUG] Deserializing transaction...');
-                // Deserialize the transaction from backend
-                const transaction = solanaWeb3.Transaction.from(
-                    Buffer.from(txData.transaction, 'base64')
+                // Deserialize the transaction from backend (browser-compatible)
+                const transactionBuffer = Uint8Array.from(
+                    atob(txData.transaction),  // atob() decodes base64 in browser
+                    c => c.charCodeAt(0)
                 );
+                const transaction = solanaWeb3.Transaction.from(transactionBuffer);
                 console.log('🔵 [DEBUG] Transaction deserialized');
 
                 console.log('🔵 [DEBUG] Requesting signature from wallet...');
