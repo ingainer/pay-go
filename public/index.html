@@ -266,8 +266,12 @@
         const USDC_DECIMALS = 6;
 
         async function initiatePayment() {
+            console.log('🔵 [DEBUG] initiatePayment() called');
             const button = document.getElementById('payButton');
             const statusMessage = document.getElementById('statusMessage');
+
+            console.log('🔵 [DEBUG] Button element:', button);
+            console.log('🔵 [DEBUG] Status message element:', statusMessage);
 
             // Disable button and show loading state
             button.disabled = true;
@@ -275,72 +279,107 @@
             statusMessage.style.display = 'none';
             statusMessage.className = 'status-message';
 
+            console.log('🔵 [DEBUG] Button disabled, showing loading state');
+
             try {
+                console.log('🔵 [DEBUG] Checking for Solana wallet...');
+                console.log('🔵 [DEBUG] window.solana:', window.solana);
+                console.log('🔵 [DEBUG] window.solana?.isPhantom:', window.solana?.isPhantom);
+
                 // Check if Solana wallet is available
-                if (!window.solana || !window.solana.isPhantom) {
+                if (!window.solana) {
+                    console.error('🔴 [ERROR] No Solana wallet detected');
                     throw new Error('Please install Phantom wallet or another Solana wallet');
                 }
 
+                console.log('🟢 [SUCCESS] Solana wallet detected!');
+                console.log('🔵 [DEBUG] Attempting to connect to wallet...');
+
                 // Connect to wallet
                 const resp = await window.solana.connect();
+                console.log('🟢 [SUCCESS] Wallet connected!', resp);
+
                 const walletPublicKey = resp.publicKey.toString();
+                console.log('🔵 [DEBUG] Wallet public key:', walletPublicKey);
 
                 statusMessage.textContent = '💳 Wallet connected! Processing payment...';
                 statusMessage.className = 'status-message info';
                 button.innerHTML = '<span class="loader"></span>Sending payment...';
 
+                console.log('🔵 [DEBUG] Creating Solana connection...');
                 // Create connection to Solana
                 const connection = new solanaWeb3.Connection(
                     'https://api.mainnet-beta.solana.com',
                     'confirmed'
                 );
+                console.log('🟢 [SUCCESS] Solana connection created');
 
+                console.log('🔵 [DEBUG] Creating public keys...');
                 // Get sender's USDC token account
                 const senderPublicKey = new solanaWeb3.PublicKey(walletPublicKey);
                 const recipientPublicKey = new solanaWeb3.PublicKey(RECIPIENT);
                 const usdcMintPublicKey = new solanaWeb3.PublicKey(USDC_MINT);
+                console.log('🔵 [DEBUG] Sender:', senderPublicKey.toString());
+                console.log('🔵 [DEBUG] Recipient:', recipientPublicKey.toString());
 
+                console.log('🔵 [DEBUG] Getting associated token accounts...');
                 // Get associated token accounts
                 const senderTokenAccount = await splToken.getAssociatedTokenAddress(
                     usdcMintPublicKey,
                     senderPublicKey
                 );
+                console.log('🔵 [DEBUG] Sender token account:', senderTokenAccount.toString());
 
                 const recipientTokenAccount = await splToken.getAssociatedTokenAddress(
                     usdcMintPublicKey,
                     recipientPublicKey
                 );
+                console.log('🔵 [DEBUG] Recipient token account:', recipientTokenAccount.toString());
+
+                console.log('🔵 [DEBUG] Creating transfer instruction...');
+                const transferAmount = AMOUNT_USDC * Math.pow(10, USDC_DECIMALS);
+                console.log('🔵 [DEBUG] Transfer amount (lamports):', transferAmount);
 
                 // Create transfer instruction
                 const transferInstruction = splToken.createTransferInstruction(
                     senderTokenAccount,
                     recipientTokenAccount,
                     senderPublicKey,
-                    AMOUNT_USDC * Math.pow(10, USDC_DECIMALS),
+                    transferAmount,
                     [],
                     splToken.TOKEN_PROGRAM_ID
                 );
+                console.log('🟢 [SUCCESS] Transfer instruction created');
 
+                console.log('🔵 [DEBUG] Creating transaction...');
                 // Create transaction
                 const transaction = new solanaWeb3.Transaction().add(transferInstruction);
                 transaction.feePayer = senderPublicKey;
 
+                console.log('🔵 [DEBUG] Getting recent blockhash...');
                 // Get recent blockhash
                 const { blockhash } = await connection.getLatestBlockhash();
                 transaction.recentBlockhash = blockhash;
+                console.log('🔵 [DEBUG] Blockhash:', blockhash);
 
+                console.log('🔵 [DEBUG] Requesting signature from wallet...');
                 // Sign and send transaction
                 const signed = await window.solana.signTransaction(transaction);
+                console.log('🟢 [SUCCESS] Transaction signed by wallet');
+
+                console.log('🔵 [DEBUG] Sending transaction to blockchain...');
                 const signature = await connection.sendRawTransaction(signed.serialize());
+                console.log('🟢 [SUCCESS] Transaction sent! Signature:', signature);
 
                 statusMessage.textContent = '⏳ Confirming transaction...';
                 statusMessage.className = 'status-message info';
 
+                console.log('🔵 [DEBUG] Waiting for confirmation...');
                 // Wait for confirmation
                 await connection.confirmTransaction(signature, 'confirmed');
+                console.log('🟢 [SUCCESS] Transaction confirmed on blockchain!');
 
-                console.log('Transaction signature:', signature);
-
+                console.log('🔵 [DEBUG] Verifying payment with backend...');
                 // Verify payment with backend
                 const verifyResponse = await fetch('/api/payment/verify', {
                     method: 'POST',
@@ -354,22 +393,28 @@
                     })
                 });
 
+                console.log('🔵 [DEBUG] Verify response status:', verifyResponse.status);
                 const verifyData = await verifyResponse.json();
+                console.log('🔵 [DEBUG] Verify response data:', verifyData);
 
                 if (verifyResponse.ok && verifyData.status === 'success') {
+                    console.log('🟢 [SUCCESS] Payment verified by backend!');
                     // Payment successful
                     statusMessage.textContent = '✓ Payment successful! Redirecting to premium content...';
                     statusMessage.className = 'status-message success';
 
+                    console.log('🔵 [DEBUG] Redirecting to:', verifyData.redirectUrl);
                     // Redirect to success page with token
                     setTimeout(() => {
                         window.location.href = verifyData.redirectUrl;
                     }, 1500);
                 } else {
+                    console.error('🔴 [ERROR] Verification failed:', verifyData);
                     throw new Error(verifyData.message || 'Payment verification failed');
                 }
             } catch (error) {
-                console.error('Payment error:', error);
+                console.error('🔴 [ERROR] Payment error:', error);
+                console.error('🔴 [ERROR] Error stack:', error.stack);
                 let errorMessage = '✗ Payment failed. ';
 
                 if (error.message.includes('install')) {
@@ -382,21 +427,27 @@
                     errorMessage += error.message || 'Please try again.';
                 }
 
+                console.error('🔴 [ERROR] Displaying error to user:', errorMessage);
                 statusMessage.textContent = errorMessage;
                 statusMessage.className = 'status-message error';
                 button.disabled = false;
-                button.innerHTML = 'Pay Now';
+                button.innerHTML = 'Pay with Wallet';
             }
         }
 
         // Check wallet availability and handle page load
         window.addEventListener('DOMContentLoaded', () => {
+            console.log('🔵 [DEBUG] Page loaded, checking for wallet...');
             const statusMessage = document.getElementById('statusMessage');
             const button = document.getElementById('payButton');
             const subtitle = document.getElementById('subtitle');
 
+            console.log('🔵 [DEBUG] Checking window.solana...');
+            console.log('🔵 [DEBUG] window.solana exists:', !!window.solana);
+
             // Check for wallet
             if (!window.solana) {
+                console.log('🔴 [ERROR] No Solana wallet found');
                 statusMessage.textContent = '⚠️ Solana wallet not detected. Please install Phantom wallet to continue.';
                 statusMessage.className = 'status-message error';
                 button.disabled = true;
@@ -414,6 +465,12 @@
                 installLink.textContent = 'Install Phantom Wallet →';
                 statusMessage.appendChild(installLink);
             } else {
+                console.log('🟢 [SUCCESS] Solana wallet found!');
+                console.log('🔵 [DEBUG] Wallet details:', {
+                    isPhantom: window.solana.isPhantom,
+                    publicKey: window.solana.publicKey,
+                    isConnected: window.solana.isConnected
+                });
                 statusMessage.textContent = '✓ Wallet detected! Ready to pay.';
                 statusMessage.className = 'status-message success';
             }
@@ -423,9 +480,12 @@
             const error = urlParams.get('error');
 
             if (error === 'payment_required') {
+                console.log('⚠️ [WARNING] Payment required error in URL');
                 statusMessage.textContent = '⚠️ Payment required to access content';
                 statusMessage.className = 'status-message error';
             }
+
+            console.log('🔵 [DEBUG] Page initialization complete');
         });
     </script>
 </body>
