@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solana USDC Payment Gateway</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .payment-container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 48px;
+            max-width: 480px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 32px;
+            font-size: 42px;
+        }
+
+        h1 {
+            color: #1a202c;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            color: #718096;
+            font-size: 16px;
+            margin-bottom: 32px;
+        }
+
+        .network-badge {
+            display: inline-block;
+            background: #d6bcfa;
+            color: #553c9a;
+            padding: 8px 16px;
+            border-radius: 24px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .amount-display {
+            background: #f7fafc;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 32px;
+        }
+
+        .amount {
+            font-size: 56px;
+            font-weight: 800;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+
+        .currency {
+            color: #718096;
+            font-size: 20px;
+            font-weight: 500;
+        }
+
+        .pay-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 18px 48px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .pay-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .pay-button:active {
+            transform: translateY(0);
+        }
+
+        .pay-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .info-text {
+            color: #a0aec0;
+            font-size: 14px;
+            margin-top: 24px;
+            line-height: 1.6;
+        }
+
+        .status-message {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            display: none;
+        }
+
+        .status-message.success {
+            background: #c6f6d5;
+            color: #22543d;
+            display: block;
+        }
+
+        .status-message.error {
+            background: #fed7d7;
+            color: #742a2a;
+            display: block;
+        }
+
+        .status-message.info {
+            background: #bee3f8;
+            color: #2c5282;
+            display: block;
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .features {
+            margin-top: 32px;
+            padding-top: 32px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .feature {
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+            text-align: left;
+        }
+
+        .feature-icon {
+            width: 40px;
+            height: 40px;
+            background: #edf2f7;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-size: 20px;
+        }
+
+        .feature-text {
+            flex: 1;
+        }
+
+        .feature-title {
+            color: #2d3748;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .feature-desc {
+            color: #718096;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="payment-container">
+        <div class="logo">⚡</div>
+        <h1>Secure Payment</h1>
+        <p class="subtitle">Pay with USDC on Solana</p>
+
+        <div class="network-badge">Solana Mainnet</div>
+
+        <div class="amount-display">
+            <div class="amount">0.01</div>
+            <div class="currency">USDC</div>
+        </div>
+
+        <button id="payButton" class="pay-button" onclick="initiatePayment()">
+            Pay Now
+        </button>
+
+        <div id="statusMessage" class="status-message"></div>
+
+        <p class="info-text">
+            Powered by x402 protocol on Solana blockchain. Fast, secure, and affordable payments.
+        </p>
+
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <div class="feature-text">
+                    <div class="feature-title">Lightning Fast</div>
+                    <div class="feature-desc">400ms transaction finality</div>
+                </div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">💰</div>
+                <div class="feature-text">
+                    <div class="feature-title">Low Fees</div>
+                    <div class="feature-desc">$0.00025 per transaction</div>
+                </div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔒</div>
+                <div class="feature-text">
+                    <div class="feature-title">Secure</div>
+                    <div class="feature-desc">Protected by blockchain</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function initiatePayment() {
+            const button = document.getElementById('payButton');
+            const statusMessage = document.getElementById('statusMessage');
+
+            // Disable button and show loading state
+            button.disabled = true;
+            button.innerHTML = '<span class="loader"></span>Processing...';
+            statusMessage.style.display = 'none';
+            statusMessage.className = 'status-message';
+
+            try {
+                // Call payment endpoint
+                const response = await fetch('/api/payment/initiate', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Payment successful
+                    statusMessage.textContent = '✓ Payment successful! Redirecting...';
+                    statusMessage.className = 'status-message success';
+
+                    // Redirect to success page
+                    setTimeout(() => {
+                        window.location.href = data.redirect || '/success';
+                    }, 1500);
+                } else if (response.status === 402) {
+                    // Payment required
+                    statusMessage.textContent = 'Please complete payment with your Solana wallet';
+                    statusMessage.className = 'status-message info';
+
+                    // In production, this would trigger wallet connection
+                    console.log('Payment details:', data.paymentDetails);
+
+                    button.disabled = false;
+                    button.innerHTML = 'Pay Now';
+                } else {
+                    throw new Error(data.message || 'Payment failed');
+                }
+            } catch (error) {
+                console.error('Payment error:', error);
+                statusMessage.textContent = '✗ Payment failed. Please try again.';
+                statusMessage.className = 'status-message error';
+                button.disabled = false;
+                button.innerHTML = 'Pay Now';
+            }
+        }
+    </script>
+</body>
+</html>

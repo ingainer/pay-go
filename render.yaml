@@ -1,19 +1,17 @@
 services:
   - type: web
-    name: pay-go
-    runtime: python
+    name: pay-go-solana
+    runtime: node
     plan: free
     branch: main
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    buildCommand: npm install
+    startCommand: node server.js
     envVars:
-      - key: ADDRESS
+      - key: WALLET_ADDRESS
         value: 9dUnZnjJJwRUT5NkK2n5SwYqvuht1QRWsg7J8JX9eGGm
+      - key: SOLANA_NETWORK
+        value: mainnet-beta
       - key: FACILITATOR_URL
         value: https://facilitator.payai.network
-      - key: USDC_TOKEN_ADDRESS
-        value: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-      - key: NETWORK
-        value: solana-mainnet
-      - key: PYTHON_VERSION
-        value: 3.11.0
+      - key: PORT
+        value: 10000

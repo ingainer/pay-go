@@ -1,205 +1,110 @@
 # Solana USDC Payment Gateway
 
-A production-ready payment page that integrates Solana payments via USDC using the x402 protocol. This application features a clean payment interface with a Pay button that charges 0.01 USDC and redirects to premium content upon successful payment.
-
-## 🚀 One-Click Deploy
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ingainer/pay-go)
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/deploy?referralCode=pay-go)
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ingainer/pay-go&env=ADDRESS&envDescription=Your%20Solana%20wallet%20address&envLink=https://github.com/ingainer/pay-go#configuration)
+Production-ready payment gateway using **x402 protocol** on **Solana blockchain**.
 
 ## Features
 
-- 💎 **Solana USDC Payments**: Accept USDC payments on Solana blockchain
-- ⚡ **Fast Transactions**: Near-instant payment confirmation
-- 🔒 **Secure**: Protected by x402 protocol and blockchain cryptography
-- 🎨 **Modern UI**: Beautiful, responsive payment interface
-- 🚀 **Production Ready**: Configured for easy deployment to Vercel
+- ⚡ **Lightning Fast**: 400ms transaction finality
+- 💰 **Low Fees**: $0.00025 per transaction
+- 🔒 **Secure**: Blockchain-protected payments
+- 💎 **USDC Payments**: Stablecoin on Solana mainnet
 
 ## Tech Stack
 
-- **Backend**: FastAPI (Python)
-- **Payment Protocol**: x402
-- **Blockchain**: Solana
-- **Token**: USDC (EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)
-- **Deployment**: Vercel
+- **Backend**: Node.js + Express
+- **Payment**: x402-solana protocol
+- **Blockchain**: Solana mainnet
+- **Deployment**: Render.com
 
-## Project Structure
+## Quick Deploy to Render.com
 
-```
-pay-go/
-├── main.py                 # FastAPI application
-├── requirements.txt        # Python dependencies
-├── vercel.json            # Vercel deployment configuration
-├── .env.example           # Environment variables template
-├── templates/
-│   ├── payment.html       # Payment page
-│   └── content.html       # Success/content page
-└── README.md
-```
+### One-Click Deploy
 
-## Setup
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ingainer/pay-go)
 
-### Prerequisites
+### Manual Deploy
 
-- Python 3.9+
-- Solana wallet address (to receive payments)
-- Vercel account (for deployment)
+1. **Fork/Clone this repository**
 
-### Local Development
+2. **Go to [Render.com](https://render.com) and create new Web Service**
 
-1. **Clone and navigate to the project**:
-   ```bash
-   cd pay-go
+3. **Connect your GitHub repository**
+
+4. **Configuration** (auto-detected from `render.yaml`):
+   - Build: `npm install`
+   - Start: `node server.js`
+   - Plan: Free
+
+5. **Environment Variables** (already configured in `render.yaml`):
+   ```
+   WALLET_ADDRESS=9dUnZnjJJwRUT5NkK2n5SwYqvuht1QRWsg7J8JX9eGGm
+   SOLANA_NETWORK=mainnet-beta
+   FACILITATOR_URL=https://facilitator.payai.network
+   PORT=10000
    ```
 
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+6. **Deploy!**
 
-3. **Configure environment variables**:
-   ```bash
-   cp .env.example .env
-   ```
+Your payment gateway will be live at: `https://your-app.onrender.com`
 
-   Edit `.env` and add your Solana wallet address:
-   ```
-   ADDRESS=your_solana_wallet_address_here
-   ```
+## Local Development
 
-4. **Run the application**:
-   ```bash
-   python main.py
-   ```
+```bash
+# Install dependencies
+npm install
 
-5. **Open browser**:
-   Visit `http://localhost:8000`
+# Set environment variables
+cp .env.example .env
+# Edit .env with your Solana wallet address
 
-## Deployment to Vercel
+# Run server
+npm start
 
-### Option 1: Deploy with Vercel CLI (Autonomous)
-
-1. **Install Vercel CLI**:
-   ```bash
-   npm install -g vercel
-   ```
-
-2. **Login to Vercel**:
-   ```bash
-   vercel login
-   ```
-
-3. **Set environment variable**:
-   ```bash
-   vercel env add ADDRESS
-   ```
-   Paste your Solana wallet address when prompted.
-
-4. **Deploy**:
-   ```bash
-   vercel --prod
-   ```
-
-### Option 2: Deploy via GitHub + Vercel Dashboard
-
-1. **Initialize git repository**:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit: Solana USDC payment gateway"
-   ```
-
-2. **Create GitHub repository** and push:
-   ```bash
-   git remote add origin <your-repo-url>
-   git branch -M main
-   git push -u origin main
-   ```
-
-3. **Connect to Vercel**:
-   - Go to [vercel.com](https://vercel.com)
-   - Click "New Project"
-   - Import your GitHub repository
-   - Add environment variable: `ADDRESS` = your Solana wallet address
-   - Deploy
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ADDRESS` | Your Solana wallet address (required) | - |
-| `FACILITATOR_URL` | PayAI facilitator endpoint | `https://facilitator.payai.network` |
-| `USDC_TOKEN_ADDRESS` | Solana USDC token address | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
-| `NETWORK` | Solana network | `solana-mainnet` |
-
-### Payment Configuration
-
-The payment amount is set to **0.01 USDC** in `main.py:35`:
-
-```python
-@require_payment(
-    path="/api/payment/initiate",
-    price=0.01,  # Modify this value to change payment amount
-    recipient=RECIPIENT_ADDRESS,
-    network=NETWORK,
-    token=USDC_TOKEN_ADDRESS,
-    facilitator_url=FACILITATOR_URL
-)
+# Visit
+open http://localhost:10000
 ```
 
 ## API Endpoints
 
 - `GET /` - Payment page
-- `GET /api/payment/initiate` - Initiates payment (protected by x402)
-- `GET /home/content` - Success page with premium content
-- `GET /health` - Health check endpoint
+- `GET /api/payment/initiate` - Payment endpoint (0.01 USDC)
+- `GET /success` - Success page
+- `GET /health` - Health check
 
-## How It Works
+## Payment Flow
 
-1. User visits the payment page (`/`)
-2. User clicks "Pay Now" button
-3. Frontend calls `/api/payment/initiate`
-4. x402 middleware intercepts the request
-5. If payment not received, returns 402 Payment Required
-6. User completes payment via Solana wallet
-7. After payment confirmation, request proceeds
-8. User is redirected to `/home/content`
+1. User visits payment page
+2. Clicks "Pay Now" (0.01 USDC)
+3. Solana wallet processes payment
+4. x402 protocol verifies transaction
+5. User redirected to premium content
 
-## Testing
+## Configuration
 
-For testing on devnet:
+Edit `render.yaml` to change:
+- Payment amount (currently 0.01 USDC)
+- Wallet address
+- Network (mainnet-beta or devnet)
 
-1. Change `NETWORK` to `solana-devnet`
-2. Update `USDC_TOKEN_ADDRESS` to devnet USDC token
-3. Use a devnet Solana wallet with test USDC
+## Project Structure
 
-## Security Considerations
-
-- Never commit `.env` file (it's in `.gitignore`)
-- Store wallet address securely in Vercel environment variables
-- Use mainnet only for production
-- Monitor wallet for incoming payments
-- Consider implementing rate limiting for production use
+```
+pay-go/
+├── server.js           # Express server
+├── package.json        # Dependencies
+├── render.yaml         # Render deployment config
+├── public/
+│   ├── index.html     # Payment page
+│   └── success.html   # Success page
+└── README.md
+```
 
 ## Resources
 
-- [x402 Protocol Documentation](https://docs.payai.network/x402/introduction)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Solana Documentation](https://docs.solana.com/)
-- [Vercel Deployment Docs](https://vercel.com/docs)
-
-## Support
-
-For issues with:
-- x402 protocol: Visit [PayAI Discord](https://docs.payai.network)
-- Deployment: Check [Vercel Support](https://vercel.com/support)
-- This implementation: Open an issue in the repository
+- **x402 Protocol**: https://docs.cdp.coinbase.com/x402
+- **Solana Docs**: https://docs.solana.com
+- **Render Docs**: https://render.com/docs
 
 ## License
 
-MIT License - feel free to use this for your own projects!
+MIT

@@ -12,7 +12,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
@@ -22,7 +22,7 @@
             max-width: 900px;
             margin: 0 auto;
             background: white;
-            border-radius: 20px;
+            border-radius: 24px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             overflow: hidden;
         }
@@ -30,7 +30,7 @@
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 40px;
+            padding: 48px;
             text-align: center;
         }
 
@@ -42,71 +42,75 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 20px;
-            font-size: 40px;
+            margin: 0 auto 24px;
+            font-size: 42px;
         }
 
         h1 {
-            font-size: 32px;
-            margin-bottom: 10px;
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 12px;
         }
 
         .subtitle {
             font-size: 18px;
-            opacity: 0.9;
+            opacity: 0.95;
         }
 
         .content {
-            padding: 50px;
+            padding: 48px;
         }
 
         .welcome-message {
             background: #f7fafc;
             border-left: 4px solid #667eea;
-            padding: 20px;
-            margin-bottom: 30px;
-            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 32px;
+            border-radius: 12px;
         }
 
         .welcome-message h2 {
-            color: #2d3748;
+            color: #1a202c;
             font-size: 24px;
-            margin-bottom: 10px;
+            font-weight: 700;
+            margin-bottom: 12px;
         }
 
         .welcome-message p {
             color: #4a5568;
-            line-height: 1.6;
+            line-height: 1.8;
+            font-size: 16px;
         }
 
         .feature-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            gap: 24px;
+            margin-bottom: 32px;
         }
 
         .feature-card {
             background: #f7fafc;
-            border-radius: 12px;
-            padding: 25px;
-            transition: transform 0.3s ease;
+            border-radius: 16px;
+            padding: 28px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
         .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
         }
 
         .feature-icon {
-            font-size: 36px;
-            margin-bottom: 15px;
+            font-size: 40px;
+            margin-bottom: 16px;
         }
 
         .feature-card h3 {
-            color: #2d3748;
+            color: #1a202c;
             font-size: 18px;
-            margin-bottom: 10px;
+            font-weight: 600;
+            margin-bottom: 12px;
         }
 
         .feature-card p {
@@ -117,21 +121,49 @@
 
         .premium-content {
             background: linear-gradient(135deg, #e6fffa 0%, #f0f9ff 100%);
-            border-radius: 12px;
-            padding: 30px;
-            margin-top: 30px;
+            border-radius: 16px;
+            padding: 32px;
+            margin-top: 32px;
         }
 
         .premium-content h2 {
-            color: #2d3748;
-            font-size: 24px;
-            margin-bottom: 15px;
+            color: #1a202c;
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 16px;
         }
 
         .premium-content p {
             color: #4a5568;
             line-height: 1.8;
-            margin-bottom: 15px;
+            margin-bottom: 16px;
+            font-size: 16px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 24px;
+        }
+
+        .stat {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: #718096;
+            font-size: 14px;
         }
 
         .back-button {
@@ -139,11 +171,12 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             text-decoration: none;
-            padding: 12px 30px;
-            border-radius: 8px;
+            padding: 14px 32px;
+            border-radius: 10px;
             font-weight: 600;
+            font-size: 16px;
             transition: all 0.3s ease;
-            margin-top: 20px;
+            margin-top: 24px;
         }
 
         .back-button:hover {
@@ -153,7 +186,7 @@
 
         .footer {
             background: #f7fafc;
-            padding: 30px;
+            padding: 32px;
             text-align: center;
             color: #718096;
             font-size: 14px;
@@ -170,26 +203,26 @@
 
         <div class="content">
             <div class="welcome-message">
-                <h2>Thank you for your payment</h2>
-                <p>Your 0.01 USDC payment has been successfully processed on the Solana blockchain. You now have access to this exclusive content.</p>
+                <h2>Thank You for Your Payment</h2>
+                <p>Your 0.01 USDC payment has been successfully processed on the Solana blockchain. You now have access to this exclusive content powered by the x402 protocol.</p>
             </div>
 
             <div class="feature-grid">
                 <div class="feature-card">
-                    <div class="feature-icon">🚀</div>
+                    <div class="feature-icon">⚡</div>
                     <h3>Lightning Fast</h3>
-                    <p>Solana's high-performance blockchain ensures near-instant payment confirmation.</p>
+                    <p>Transaction confirmed in just 400 milliseconds thanks to Solana's high-performance blockchain.</p>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon">💰</div>
-                    <h3>Low Fees</h3>
-                    <p>Minimal transaction costs make micropayments economically viable.</p>
+                    <h3>Ultra-Low Fees</h3>
+                    <p>Minimal transaction costs at $0.00025 make micropayments economically viable.</p>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon">🔒</div>
-                    <h3>Secure</h3>
+                    <h3>Secure & Decentralized</h3>
                     <p>Protected by blockchain cryptography and decentralized verification.</p>
                 </div>
             </div>
@@ -197,20 +230,33 @@
             <div class="premium-content">
                 <h2>Your Premium Content</h2>
                 <p>
-                    Congratulations! You've successfully completed a Web3 payment using the x402 protocol.
-                    This demonstrates the power of blockchain-based micropayments for digital content.
+                    Congratulations! You've successfully completed a Web3 payment using the x402 protocol on Solana.
+                    This demonstrates the power of blockchain-based micropayments for digital content and services.
                 </p>
                 <p>
                     The x402 protocol enables seamless integration of cryptocurrency payments into web applications,
-                    opening up new possibilities for monetization and value exchange on the internet.
+                    opening up new possibilities for monetization and value exchange on the internet. By combining
+                    HTTP 402 "Payment Required" with blockchain technology, we're building the future of internet commerce.
                 </p>
-                <p>
+
+                <div class="stats">
+                    <div class="stat">
+                        <div class="stat-value">400ms</div>
+                        <div class="stat-label">Transaction Finality</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">$0.00025</div>
+                        <div class="stat-label">Average Fee</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">0.01</div>
+                        <div class="stat-label">USDC Paid</div>
+                    </div>
+                </div>
+
+                <p style="margin-top: 24px;">
                     This payment system uses USDC (a stablecoin pegged to the US Dollar) on the Solana blockchain,
-                    combining the benefits of cryptocurrency with price stability.
-                </p>
-                <p>
-                    Thank you for trying out this payment gateway. This technology is paving the way for
-                    the future of internet commerce and content monetization.
+                    combining the benefits of cryptocurrency (speed, transparency, low fees) with price stability.
                 </p>
             </div>
 
@@ -218,7 +264,7 @@
         </div>
 
         <div class="footer">
-            Powered by x402 Protocol on Solana Blockchain
+            Powered by x402 Protocol on Solana Blockchain • Built with ⚡ by the future of payments
         </div>
     </div>
 </body>

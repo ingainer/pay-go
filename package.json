@@ -1,0 +1,23 @@
+{
+  "name": "pay-go-solana",
+  "version": "1.0.0",
+  "description": "Solana USDC Payment Gateway with x402 Protocol",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["solana", "x402", "payment", "usdc", "crypto"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "x402-solana": "^0.1.0",
+    "@solana/web3.js": "^1.95.8",
+    "dotenv": "^16.4.5",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
