@@ -21,6 +21,13 @@ const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
 const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://facilitator.payai.network';
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'; // USDC on Solana mainnet
 
+// RPC URL - use private RPC if provided, otherwise use public (may hit rate limits)
+const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || (
+  SOLANA_NETWORK === 'mainnet-beta'
+    ? 'https://api.mainnet-beta.solana.com'
+    : 'https://api.devnet.solana.com'
+);
+
 if (!WALLET_ADDRESS) {
   throw new Error('WALLET_ADDRESS environment variable is required');
 }
@@ -28,13 +35,15 @@ if (!WALLET_ADDRESS) {
 console.log('🚀 Server Configuration:');
 console.log('📍 Wallet:', WALLET_ADDRESS.substring(0, 8) + '...' + WALLET_ADDRESS.substring(WALLET_ADDRESS.length - 8));
 console.log('🌐 Network:', SOLANA_NETWORK);
+console.log('🔗 RPC:', process.env.SOLANA_RPC_URL ? 'Private RPC (configured)' : 'Public RPC (may have rate limits)');
 console.log('💰 Payment: 0.01 USDC');
 
 // Initialize X402 Payment Handler
 const x402Handler = new X402PaymentHandler({
   facilitatorUrl: FACILITATOR_URL,
   treasuryAddress: WALLET_ADDRESS,
-  network: SOLANA_NETWORK === 'mainnet-beta' ? 'solana' : 'solana-devnet'
+  network: SOLANA_NETWORK === 'mainnet-beta' ? 'solana' : 'solana-devnet',
+  rpcUrl: SOLANA_RPC_URL
 });
 
 console.log('✅ X402 Payment Handler initialized');
