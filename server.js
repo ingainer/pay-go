@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const crypto = require('crypto');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -10,6 +11,7 @@ const PORT = process.env.PORT || 10000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.static('public'));
 
 // Configuration
@@ -41,37 +43,60 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Store active sessions (token -> session data)
+const activeSessions = new Map();
+
 // Protected content page - returns 402 if not paid
 app.get('/content', (req, res) => {
   const token = req.query.token;
 
   // Check if token is valid
   if (!token || !validTokens.has(token)) {
-    // Return 402 Payment Required with payment details
-    return res.status(402).json({
-      error: 'Payment Required',
-      message: 'Please complete payment to access this resource',
-      paymentDetails: {
-        amount: '0.01',
-        currency: 'USDC',
-        network: SOLANA_NETWORK,
-        recipient: WALLET_ADDRESS,
-        mint: USDC_MINT,
-        facilitator: FACILITATOR_URL
-      },
-      instructions: {
-        step1: 'Connect your Solana wallet (Phantom, Solflare, etc.)',
-        step2: 'Send 0.01 USDC to the recipient address',
-        step3: 'Submit your transaction signature to /api/payment/verify'
-      }
-    });
+    // Return 402 Payment Required and redirect to payment page
+    res.status(402);
+    return res.redirect('/');
   }
 
-  // Token is valid, consume it (one-time use)
+  // Token is valid, consume it and create session
   validTokens.delete(token);
 
-  // Return success page with premium content
-  res.sendFile(path.join(__dirname, 'public', 'success.html'));
+  // Create session token for accessing content files
+  const sessionToken = generatePaymentToken();
+  activeSessions.set(sessionToken, {
+    createdAt: Date.now(),
+    expiresAt: Date.now() + (5 * 60 * 1000) // 5 minutes
+  });
+
+  // Set session cookie
+  res.cookie('session_token', sessionToken, {
+    httpOnly: true,
+    maxAge: 5 * 60 * 1000 // 5 minutes
+  });
+
+  // Return premium content page
+  res.sendFile(path.join(__dirname, 'public', 'content.html'));
+});
+
+// Protected content files - requires valid session
+app.get('/content-files/:filename', (req, res) => {
+  const sessionToken = req.cookies?.session_token;
+
+  // Check if session is valid
+  if (!sessionToken || !activeSessions.has(sessionToken)) {
+    return res.status(402).send('Payment Required');
+  }
+
+  const session = activeSessions.get(sessionToken);
+
+  // Check if session expired
+  if (Date.now() > session.expiresAt) {
+    activeSessions.delete(sessionToken);
+    return res.status(402).send('Session Expired - Payment Required');
+  }
+
+  // Serve the protected file
+  const filename = req.params.filename;
+  res.sendFile(path.join(__dirname, 'content', filename));
 });
 
 // Create transaction for payment (backend builds transaction)
@@ -118,34 +143,56 @@ app.post('/api/payment/create-transaction', async (req, res) => {
 
     // Check if sender's USDC account exists
     const senderAccountInfo = await connection.getAccountInfo(senderTokenAccount);
+    const { createAssociatedTokenAccountInstruction, getAccount } = require('@solana/spl-token');
 
+    // Create transaction
+    const transaction = new Transaction();
+    transaction.feePayer = senderPublicKey;
+
+    // If sender doesn't have USDC account, they have 0 USDC - return error
     if (!senderAccountInfo) {
-      console.error('❌ Sender does not have a USDC token account!');
+      console.log('⚠️ Sender does not have USDC token account (balance = 0 USDC)');
       return res.status(400).json({
-        error: 'No USDC account',
-        message: 'Your wallet does not have a USDC token account. Please receive some USDC first to create the account, or the transaction will include an instruction to create it.',
-        senderTokenAccount: senderTokenAccount.toString()
+        error: 'Insufficient USDC balance',
+        message: 'You need at least 0.01 USDC to make this payment. Please get USDC first.',
+        balance: 0
       });
     }
 
-    console.log('✅ Sender has USDC token account');
-
     // Check sender's USDC balance
-    const { getAccount } = require('@solana/spl-token');
-    try {
-      const senderAccount = await getAccount(connection, senderTokenAccount);
-      const balance = Number(senderAccount.amount) / Math.pow(10, 6);
-      console.log(`💰 Sender USDC balance: ${balance} USDC`);
+    {
+      console.log('✅ Sender has USDC token account');
 
-      if (balance < 0.01) {
-        return res.status(400).json({
-          error: 'Insufficient USDC balance',
-          message: `You need at least 0.01 USDC. Current balance: ${balance} USDC`,
-          balance: balance
-        });
+      // Check sender's USDC balance only if account exists
+      try {
+        const senderAccount = await getAccount(connection, senderTokenAccount);
+        const balance = Number(senderAccount.amount) / Math.pow(10, 6);
+        console.log(`💰 Sender USDC balance: ${balance} USDC`);
+
+        if (balance < 0.01) {
+          return res.status(400).json({
+            error: 'Insufficient USDC balance',
+            message: `You need at least 0.01 USDC. Current balance: ${balance} USDC`,
+            balance: balance
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error checking balance:', error.message);
       }
-    } catch (error) {
-      console.error('❌ Error checking balance:', error.message);
+    }
+
+    // Check if recipient needs token account created
+    const recipientAccountInfo = await connection.getAccountInfo(recipientTokenAccount);
+    if (!recipientAccountInfo) {
+      console.log('⚠️ Recipient does not have USDC token account, adding create instruction...');
+      const createRecipientATAInstruction = createAssociatedTokenAccountInstruction(
+        senderPublicKey,          // payer (sender pays for recipient's account)
+        recipientTokenAccount,    // associatedToken
+        recipientPublicKey,       // owner
+        usdcMintPublicKey        // mint
+      );
+      transaction.add(createRecipientATAInstruction);
+      console.log('✅ Added instruction to create recipient USDC token account');
     }
 
     // Create transfer instruction for 0.01 USDC (10000 microUSDC)
@@ -158,9 +205,7 @@ app.post('/api/payment/create-transaction', async (req, res) => {
       TOKEN_PROGRAM_ID
     );
 
-    // Create transaction
-    const transaction = new Transaction().add(transferInstruction);
-    transaction.feePayer = senderPublicKey;
+    transaction.add(transferInstruction);
 
     // Get recent blockhash (backend RPC, no CORS issues)
     const { blockhash } = await connection.getLatestBlockhash();
@@ -302,16 +347,22 @@ app.post('/api/payment/verify', async (req, res) => {
           pre => pre.accountIndex === postBalance.accountIndex
         );
 
-        if (preBalance) {
-          const change = parseFloat(postBalance.uiTokenAmount.amount) -
-                        parseFloat(preBalance.uiTokenAmount.amount);
+        let change = 0;
 
-          // Check if recipient's account received the payment
-          const accountKey = tx.transaction.message.accountKeys[postBalance.accountIndex];
-          if (accountKey && change >= expectedAmount * 0.99) { // Allow 1% tolerance
-            recipientReceived = true;
-            console.log('✅ On-chain verification: ', change / Math.pow(10, 6), 'USDC received');
-          }
+        if (preBalance) {
+          // Account existed before - calculate change
+          change = parseFloat(postBalance.uiTokenAmount.amount) -
+                   parseFloat(preBalance.uiTokenAmount.amount);
+        } else {
+          // Account was created in this transaction - use post balance as the amount received
+          change = parseFloat(postBalance.uiTokenAmount.amount);
+          console.log('📝 New account created in transaction, balance:', change / Math.pow(10, 6), 'USDC');
+        }
+
+        // Check if this amount matches our expected payment
+        if (change >= expectedAmount * 0.99) { // Allow 1% tolerance
+          recipientReceived = true;
+          console.log('✅ On-chain verification: ', change / Math.pow(10, 6), 'USDC received');
         }
       }
     }

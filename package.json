@@ -7,16 +7,23 @@
     "start": "node server.js",
     "dev": "node server.js"
   },
-  "keywords": ["solana", "x402", "payment", "usdc", "crypto"],
+  "keywords": [
+    "solana",
+    "x402",
+    "payment",
+    "usdc",
+    "crypto"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.19.2",
-    "x402-solana": "^0.1.0",
-    "@solana/web3.js": "^1.95.8",
     "@solana/spl-token": "^0.4.1",
+    "@solana/web3.js": "^1.95.8",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "cors": "^2.8.5"
+    "express": "^4.19.2",
+    "x402-solana": "^0.1.0"
   },
   "engines": {
     "node": ">=18.0.0"

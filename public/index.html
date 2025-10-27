@@ -131,6 +131,18 @@
             font-size: 14px;
             font-weight: 500;
             display: none;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        .status-message a {
+            display: inline-block;
+            margin-top: 8px;
+            transition: opacity 0.2s;
+        }
+
+        .status-message a:hover {
+            opacity: 0.8;
         }
 
         .status-message.success {
@@ -314,6 +326,34 @@
 
                 if (!txResponse.ok) {
                     const error = await txResponse.json();
+
+                    // Special handling for insufficient balance
+                    if (error.error === 'Insufficient USDC balance') {
+                        console.error('🔴 [ERROR] Insufficient USDC balance:', error);
+                        console.log('🔵 [DEBUG] Setting error message on UI...');
+
+                        statusMessage.innerHTML = `
+                            <strong>⚠️ Insufficient USDC Balance</strong><br>
+                            You need at least 0.01 USDC to access this content.<br>
+                            ${error.balance !== undefined ? `Current balance: ${error.balance} USDC<br>` : ''}
+                            <a href="https://jup.ag/swap/SOL-USDC" target="_blank" style="color: #667eea; font-weight: 600; text-decoration: none;">
+                                Get USDC on Jupiter Exchange →
+                            </a>
+                        `;
+                        statusMessage.className = 'status-message error';
+                        statusMessage.style.display = 'block';
+
+                        console.log('🔵 [DEBUG] statusMessage.innerHTML:', statusMessage.innerHTML);
+                        console.log('🔵 [DEBUG] statusMessage.className:', statusMessage.className);
+                        console.log('🔵 [DEBUG] statusMessage.style.display:', statusMessage.style.display);
+
+                        button.disabled = false;
+                        button.innerHTML = 'Pay with Wallet';
+
+                        console.log('🟢 [SUCCESS] Error message displayed to user');
+                        return;
+                    }
+
                     throw new Error(error.message || 'Failed to create transaction');
                 }
 
