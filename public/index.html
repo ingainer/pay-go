@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solana USDC Payment Gateway</title>
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@solana/spl-token@latest/lib/index.iife.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -213,7 +215,7 @@
     <div class="payment-container">
         <div class="logo">⚡</div>
         <h1>Secure Payment</h1>
-        <p class="subtitle">Pay with USDC on Solana</p>
+        <p class="subtitle">Connect your Phantom wallet to pay with USDC</p>
 
         <div class="network-badge">Solana Mainnet</div>
 
@@ -258,43 +260,129 @@
     </div>
 
     <script>
+        const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+        const RECIPIENT = '9dUnZnjJJwRUT5NkK2n5SwYqvuht1QRWsg7J8JX9eGGm';
+        const AMOUNT_USDC = 0.01; // 0.01 USDC
+        const USDC_DECIMALS = 6;
+
         async function initiatePayment() {
             const button = document.getElementById('payButton');
             const statusMessage = document.getElementById('statusMessage');
 
             // Disable button and show loading state
             button.disabled = true;
-            button.innerHTML = '<span class="loader"></span>Processing...';
+            button.innerHTML = '<span class="loader"></span>Connecting wallet...';
             statusMessage.style.display = 'none';
             statusMessage.className = 'status-message';
 
             try {
-                // Use demo endpoint for testing (in production, this would connect to Solana wallet)
-                const response = await fetch('/api/payment/demo', {
+                // Check if Solana wallet is available
+                if (!window.solana || !window.solana.isPhantom) {
+                    throw new Error('Please install Phantom wallet or another Solana wallet');
+                }
+
+                // Connect to wallet
+                const resp = await window.solana.connect();
+                const walletPublicKey = resp.publicKey.toString();
+
+                statusMessage.textContent = '💳 Wallet connected! Processing payment...';
+                statusMessage.className = 'status-message info';
+                button.innerHTML = '<span class="loader"></span>Sending payment...';
+
+                // Create connection to Solana
+                const connection = new solanaWeb3.Connection(
+                    'https://api.mainnet-beta.solana.com',
+                    'confirmed'
+                );
+
+                // Get sender's USDC token account
+                const senderPublicKey = new solanaWeb3.PublicKey(walletPublicKey);
+                const recipientPublicKey = new solanaWeb3.PublicKey(RECIPIENT);
+                const usdcMintPublicKey = new solanaWeb3.PublicKey(USDC_MINT);
+
+                // Get associated token accounts
+                const senderTokenAccount = await splToken.getAssociatedTokenAddress(
+                    usdcMintPublicKey,
+                    senderPublicKey
+                );
+
+                const recipientTokenAccount = await splToken.getAssociatedTokenAddress(
+                    usdcMintPublicKey,
+                    recipientPublicKey
+                );
+
+                // Create transfer instruction
+                const transferInstruction = splToken.createTransferInstruction(
+                    senderTokenAccount,
+                    recipientTokenAccount,
+                    senderPublicKey,
+                    AMOUNT_USDC * Math.pow(10, USDC_DECIMALS),
+                    [],
+                    splToken.TOKEN_PROGRAM_ID
+                );
+
+                // Create transaction
+                const transaction = new solanaWeb3.Transaction().add(transferInstruction);
+                transaction.feePayer = senderPublicKey;
+
+                // Get recent blockhash
+                const { blockhash } = await connection.getLatestBlockhash();
+                transaction.recentBlockhash = blockhash;
+
+                // Sign and send transaction
+                const signed = await window.solana.signTransaction(transaction);
+                const signature = await connection.sendRawTransaction(signed.serialize());
+
+                statusMessage.textContent = '⏳ Confirming transaction...';
+                statusMessage.className = 'status-message info';
+
+                // Wait for confirmation
+                await connection.confirmTransaction(signature, 'confirmed');
+
+                console.log('Transaction signature:', signature);
+
+                // Verify payment with backend
+                const verifyResponse = await fetch('/api/payment/verify', {
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json',
                         'Content-Type': 'application/json'
                     },
+                    body: JSON.stringify({
+                        signature: signature,
+                        walletAddress: walletPublicKey
+                    })
                 });
 
-                const data = await response.json();
+                const verifyData = await verifyResponse.json();
 
-                if (response.ok && data.status === 'success') {
+                if (verifyResponse.ok && verifyData.status === 'success') {
                     // Payment successful
                     statusMessage.textContent = '✓ Payment successful! Redirecting to premium content...';
                     statusMessage.className = 'status-message success';
 
                     // Redirect to success page with token
                     setTimeout(() => {
-                        window.location.href = data.redirectUrl;
-                    }, 1000);
+                        window.location.href = verifyData.redirectUrl;
+                    }, 1500);
                 } else {
-                    throw new Error(data.message || 'Payment failed');
+                    throw new Error(verifyData.message || 'Payment verification failed');
                 }
             } catch (error) {
                 console.error('Payment error:', error);
-                statusMessage.textContent = '✗ Payment failed. Please try again.';
+                let errorMessage = '✗ Payment failed. ';
+
+                if (error.message.includes('install')) {
+                    errorMessage += 'Please install Phantom wallet.';
+                } else if (error.message.includes('User rejected')) {
+                    errorMessage += 'Transaction was cancelled.';
+                } else if (error.message.includes('Attempt to debit')) {
+                    errorMessage += 'Insufficient USDC balance.';
+                } else {
+                    errorMessage += error.message || 'Please try again.';
+                }
+
+                statusMessage.textContent = errorMessage;
                 statusMessage.className = 'status-message error';
                 button.disabled = false;
                 button.innerHTML = 'Pay Now';

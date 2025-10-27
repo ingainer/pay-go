@@ -96,13 +96,75 @@ app.post('/api/payment/verify', async (req, res) => {
       });
     }
 
-    // In production, verify the transaction on Solana blockchain
-    // For now, we'll accept the signature and generate a token
-    // TODO: Implement actual on-chain verification using @solana/web3.js
-
     console.log('📝 Payment verification request:');
     console.log('  Signature:', signature.substring(0, 20) + '...');
     console.log('  From:', walletAddress);
+
+    // Verify the transaction on Solana blockchain
+    const { Connection, PublicKey } = require('@solana/web3.js');
+    const connection = new Connection(
+      SOLANA_NETWORK === 'mainnet-beta'
+        ? 'https://api.mainnet-beta.solana.com'
+        : 'https://api.devnet.solana.com',
+      'confirmed'
+    );
+
+    // Get transaction details
+    const tx = await connection.getTransaction(signature, {
+      maxSupportedTransactionVersion: 0
+    });
+
+    if (!tx) {
+      return res.status(400).json({
+        error: 'Transaction not found',
+        message: 'Transaction not found on blockchain'
+      });
+    }
+
+    // Verify transaction was successful
+    if (tx.meta.err) {
+      return res.status(400).json({
+        error: 'Transaction failed',
+        message: 'Transaction failed on blockchain'
+      });
+    }
+
+    // Parse transaction to verify payment details
+    const postBalances = tx.meta.postTokenBalances || [];
+    const preBalances = tx.meta.preTokenBalances || [];
+
+    // Find USDC token changes
+    let recipientReceived = false;
+    const expectedAmount = 0.01 * Math.pow(10, 6); // 0.01 USDC in lamports
+
+    for (const postBalance of postBalances) {
+      if (postBalance.mint === USDC_MINT) {
+        const preBalance = preBalances.find(
+          pre => pre.accountIndex === postBalance.accountIndex
+        );
+
+        if (preBalance) {
+          const change = parseFloat(postBalance.uiTokenAmount.amount) -
+                        parseFloat(preBalance.uiTokenAmount.amount);
+
+          // Check if recipient's account received the payment
+          const accountKey = tx.transaction.message.accountKeys[postBalance.accountIndex];
+          if (accountKey && change >= expectedAmount * 0.99) { // Allow 1% tolerance
+            recipientReceived = true;
+            console.log('✅ Payment verified: ', change / Math.pow(10, 6), 'USDC received');
+          }
+        }
+      }
+    }
+
+    if (!recipientReceived) {
+      return res.status(400).json({
+        error: 'Payment verification failed',
+        message: 'Payment amount or recipient does not match'
+      });
+    }
+
+    console.log('✅ Payment verified successfully');
 
     // Generate one-time token for accessing success page
     const token = generatePaymentToken();
@@ -122,7 +184,10 @@ app.post('/api/payment/verify', async (req, res) => {
 
   } catch (error) {
     console.error('Payment verification error:', error);
-    res.status(500).json({ error: 'Payment verification failed' });
+    res.status(500).json({
+      error: 'Payment verification failed',
+      message: error.message
+    });
   }
 });
 
