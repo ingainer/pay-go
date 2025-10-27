@@ -5,7 +5,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solana USDC Payment Gateway</title>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-    <script src="https://unpkg.com/@solana/spl-token@latest/lib/index.iife.min.js"></script>
+    <script>
+        // SPL Token Program helpers for browser
+        window.splToken = {
+            TOKEN_PROGRAM_ID: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
+            ASSOCIATED_TOKEN_PROGRAM_ID: new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'),
+
+            getAssociatedTokenAddress: async function(mint, owner) {
+                const [address] = await solanaWeb3.PublicKey.findProgramAddress(
+                    [
+                        owner.toBuffer(),
+                        this.TOKEN_PROGRAM_ID.toBuffer(),
+                        mint.toBuffer(),
+                    ],
+                    this.ASSOCIATED_TOKEN_PROGRAM_ID
+                );
+                return address;
+            },
+
+            createTransferInstruction: function(source, destination, owner, amount) {
+                const keys = [
+                    { pubkey: source, isSigner: false, isWritable: true },
+                    { pubkey: destination, isSigner: false, isWritable: true },
+                    { pubkey: owner, isSigner: true, isWritable: false }
+                ];
+
+                // Create transfer instruction data
+                // Instruction: 3 (Transfer)
+                // Amount: u64 (8 bytes)
+                const data = new Uint8Array(9);
+                data[0] = 3; // Transfer instruction
+
+                // Write amount as little-endian u64
+                const amountBigInt = BigInt(Math.floor(amount));
+                for (let i = 0; i < 8; i++) {
+                    data[1 + i] = Number((amountBigInt >> BigInt(i * 8)) & BigInt(0xff));
+                }
+
+                return new solanaWeb3.TransactionInstruction({
+                    keys,
+                    programId: this.TOKEN_PROGRAM_ID,
+                    data
+                });
+            }
+        };
+        console.log('✅ SPL Token helpers initialized');
+    </script>
     <style>
         * {
             margin: 0;
@@ -345,9 +390,7 @@
                     senderTokenAccount,
                     recipientTokenAccount,
                     senderPublicKey,
-                    transferAmount,
-                    [],
-                    splToken.TOKEN_PROGRAM_ID
+                    transferAmount
                 );
                 console.log('🟢 [SUCCESS] Transfer instruction created');
 
