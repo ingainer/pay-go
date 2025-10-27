@@ -4,6 +4,7 @@ const path = require('path');
 const cors = require('cors');
 const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
+const { X402PaymentHandler, usdToMicroUsdc } = require('@payai/x402-solana');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -29,6 +30,15 @@ console.log('📍 Wallet:', WALLET_ADDRESS.substring(0, 8) + '...' + WALLET_ADDR
 console.log('🌐 Network:', SOLANA_NETWORK);
 console.log('💰 Payment: 0.01 USDC');
 
+// Initialize X402 Payment Handler
+const x402Handler = new X402PaymentHandler({
+  facilitatorUrl: FACILITATOR_URL,
+  recipient: WALLET_ADDRESS,
+  network: SOLANA_NETWORK === 'mainnet-beta' ? 'solana' : 'solana-devnet'
+});
+
+console.log('✅ X402 Payment Handler initialized');
+
 // Store valid payment tokens (in production, use Redis or database)
 const validTokens = new Set();
 
@@ -47,34 +57,63 @@ app.get('/', (req, res) => {
 const activeSessions = new Map();
 
 // Protected content page - returns 402 if not paid
-app.get('/content', (req, res) => {
-  const token = req.query.token;
+app.get('/content', async (req, res) => {
+  try {
+    // Extract payment header
+    const paymentHeader = x402Handler.extractPayment(req.headers);
 
-  // Check if token is valid
-  if (!token || !validTokens.has(token)) {
-    // Return 402 Payment Required and redirect to payment page
-    res.status(402);
-    return res.redirect('/');
+    // Create payment requirements
+    const paymentRequirements = await x402Handler.createPaymentRequirements({
+      price: {
+        amount: usdToMicroUsdc(0.01), // 0.01 USDC
+        asset: {
+          address: USDC_MINT
+        }
+      },
+      network: SOLANA_NETWORK === 'mainnet-beta' ? 'solana' : 'solana-devnet',
+      config: {
+        description: 'Premium Content Access',
+        resource: `${req.protocol}://${req.get('host')}/content`
+      }
+    });
+
+    // If no payment header, return 402 with payment requirements
+    if (!paymentHeader) {
+      const response402 = x402Handler.create402Response(paymentRequirements);
+      return res.status(response402.status).json(response402.body);
+    }
+
+    // Verify payment
+    const verified = await x402Handler.verifyPayment(paymentHeader, paymentRequirements);
+
+    if (!verified) {
+      console.log('⚠️ Payment verification failed');
+      const response402 = x402Handler.create402Response(paymentRequirements);
+      return res.status(response402.status).json(response402.body);
+    }
+
+    console.log('✅ Payment verified successfully via x402');
+
+    // Create session token for accessing content files
+    const sessionToken = generatePaymentToken();
+    activeSessions.set(sessionToken, {
+      createdAt: Date.now(),
+      expiresAt: Date.now() + (5 * 60 * 1000) // 5 minutes
+    });
+
+    // Set session cookie
+    res.cookie('session_token', sessionToken, {
+      httpOnly: true,
+      maxAge: 5 * 60 * 1000 // 5 minutes
+    });
+
+    // Return premium content page
+    res.sendFile(path.join(__dirname, 'public', 'content.html'));
+
+  } catch (error) {
+    console.error('❌ Content access error:', error);
+    res.status(500).json({ error: 'Failed to process content request', message: error.message });
   }
-
-  // Token is valid, consume it and create session
-  validTokens.delete(token);
-
-  // Create session token for accessing content files
-  const sessionToken = generatePaymentToken();
-  activeSessions.set(sessionToken, {
-    createdAt: Date.now(),
-    expiresAt: Date.now() + (5 * 60 * 1000) // 5 minutes
-  });
-
-  // Set session cookie
-  res.cookie('session_token', sessionToken, {
-    httpOnly: true,
-    maxAge: 5 * 60 * 1000 // 5 minutes
-  });
-
-  // Return premium content page
-  res.sendFile(path.join(__dirname, 'public', 'content.html'));
 });
 
 // Protected content files - requires valid session
@@ -98,309 +137,6 @@ app.get('/content-files/:filename', (req, res) => {
   const filename = req.params.filename;
   res.sendFile(path.join(__dirname, 'content', filename));
 });
-
-// Create transaction for payment (backend builds transaction)
-app.post('/api/payment/create-transaction', async (req, res) => {
-  try {
-    const { walletAddress } = req.body;
-
-    if (!walletAddress) {
-      return res.status(400).json({
-        error: 'Missing wallet address',
-        message: 'Wallet address is required'
-      });
-    }
-
-    console.log('🔵 Creating transaction for wallet:', walletAddress);
-
-    const { Connection, PublicKey, Transaction } = require('@solana/web3.js');
-    const { getAssociatedTokenAddress, createTransferInstruction, TOKEN_PROGRAM_ID } = require('@solana/spl-token');
-
-    // Backend handles RPC connection (no frontend 403 errors)
-    const connection = new Connection(
-      SOLANA_NETWORK === 'mainnet-beta'
-        ? 'https://api.mainnet-beta.solana.com'
-        : 'https://api.devnet.solana.com',
-      'confirmed'
-    );
-
-    const senderPublicKey = new PublicKey(walletAddress);
-    const recipientPublicKey = new PublicKey(WALLET_ADDRESS);
-    const usdcMintPublicKey = new PublicKey(USDC_MINT);
-
-    // Get associated token accounts
-    const senderTokenAccount = await getAssociatedTokenAddress(
-      usdcMintPublicKey,
-      senderPublicKey
-    );
-
-    const recipientTokenAccount = await getAssociatedTokenAddress(
-      usdcMintPublicKey,
-      recipientPublicKey
-    );
-
-    console.log('🔍 Checking if token accounts exist...');
-
-    // Check if sender's USDC account exists
-    const senderAccountInfo = await connection.getAccountInfo(senderTokenAccount);
-    const { createAssociatedTokenAccountInstruction, getAccount } = require('@solana/spl-token');
-
-    // Create transaction
-    const transaction = new Transaction();
-    transaction.feePayer = senderPublicKey;
-
-    // If sender doesn't have USDC account, they have 0 USDC - return error
-    if (!senderAccountInfo) {
-      console.log('⚠️ Sender does not have USDC token account (balance = 0 USDC)');
-      return res.status(400).json({
-        error: 'Insufficient USDC balance',
-        message: 'You need at least 0.01 USDC to make this payment. Please get USDC first.',
-        balance: 0
-      });
-    }
-
-    // Check sender's USDC balance
-    {
-      console.log('✅ Sender has USDC token account');
-
-      // Check sender's USDC balance only if account exists
-      try {
-        const senderAccount = await getAccount(connection, senderTokenAccount);
-        const balance = Number(senderAccount.amount) / Math.pow(10, 6);
-        console.log(`💰 Sender USDC balance: ${balance} USDC`);
-
-        if (balance < 0.01) {
-          return res.status(400).json({
-            error: 'Insufficient USDC balance',
-            message: `You need at least 0.01 USDC. Current balance: ${balance} USDC`,
-            balance: balance
-          });
-        }
-      } catch (error) {
-        console.error('❌ Error checking balance:', error.message);
-      }
-    }
-
-    // Check if recipient needs token account created
-    const recipientAccountInfo = await connection.getAccountInfo(recipientTokenAccount);
-    if (!recipientAccountInfo) {
-      console.log('⚠️ Recipient does not have USDC token account, adding create instruction...');
-      const createRecipientATAInstruction = createAssociatedTokenAccountInstruction(
-        senderPublicKey,          // payer (sender pays for recipient's account)
-        recipientTokenAccount,    // associatedToken
-        recipientPublicKey,       // owner
-        usdcMintPublicKey        // mint
-      );
-      transaction.add(createRecipientATAInstruction);
-      console.log('✅ Added instruction to create recipient USDC token account');
-    }
-
-    // Create transfer instruction for 0.01 USDC (10000 microUSDC)
-    const transferInstruction = createTransferInstruction(
-      senderTokenAccount,
-      recipientTokenAccount,
-      senderPublicKey,
-      10000, // 0.01 USDC = 10000 with 6 decimals
-      [],
-      TOKEN_PROGRAM_ID
-    );
-
-    transaction.add(transferInstruction);
-
-    // Get recent blockhash (backend RPC, no CORS issues)
-    const { blockhash } = await connection.getLatestBlockhash();
-    transaction.recentBlockhash = blockhash;
-
-    // Serialize transaction to send to frontend
-    const serializedTransaction = transaction.serialize({
-      requireAllSignatures: false,
-      verifySignatures: false
-    }).toString('base64');
-
-    console.log('✅ Transaction created successfully');
-
-    res.json({
-      status: 'success',
-      transaction: serializedTransaction,
-      message: 'Transaction ready for signing'
-    });
-
-  } catch (error) {
-    console.error('❌ Transaction creation error:', error);
-    res.status(500).json({
-      error: 'Transaction creation failed',
-      message: error.message
-    });
-  }
-});
-
-// Payment verification endpoint - verifies through facilitator
-app.post('/api/payment/verify', async (req, res) => {
-  try {
-    const { signature, walletAddress } = req.body;
-
-    if (!signature || !walletAddress) {
-      return res.status(400).json({
-        error: 'Missing required fields',
-        message: 'Signature and wallet address are required'
-      });
-    }
-
-    console.log('📝 Payment verification request:');
-    console.log('  Signature:', signature.substring(0, 20) + '...');
-    console.log('  From:', walletAddress);
-
-    // First, verify transaction on-chain
-    const { Connection, PublicKey } = require('@solana/web3.js');
-    const connection = new Connection(
-      SOLANA_NETWORK === 'mainnet-beta'
-        ? 'https://api.mainnet-beta.solana.com'
-        : 'https://api.devnet.solana.com',
-      'confirmed'
-    );
-
-    // Get transaction details with retry logic (blockchain propagation)
-    let tx = null;
-    let retries = 3;
-
-    for (let i = 0; i < retries; i++) {
-      console.log(`🔍 Attempt ${i + 1}/${retries} to fetch transaction...`);
-      tx = await connection.getTransaction(signature, {
-        maxSupportedTransactionVersion: 0
-      });
-
-      if (tx) {
-        console.log('✅ Transaction found on blockchain');
-        break;
-      }
-
-      if (i < retries - 1) {
-        console.log('⏳ Transaction not found yet, waiting 1 second...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    if (!tx) {
-      console.error('❌ Transaction not found after all retries');
-      return res.status(400).json({
-        error: 'Transaction not found',
-        message: 'Transaction not found on blockchain after multiple attempts. Please try again.'
-      });
-    }
-
-    // Verify transaction was successful
-    if (tx.meta.err) {
-      console.error('❌ Transaction failed on-chain:');
-      console.error('Error details:', JSON.stringify(tx.meta.err, null, 2));
-      console.error('Transaction logs:', tx.meta.logMessages);
-
-      return res.status(400).json({
-        error: 'Transaction failed',
-        message: 'Transaction failed on blockchain',
-        details: tx.meta.err,
-        logs: tx.meta.logMessages
-      });
-    }
-
-    // Verify with PayAI facilitator
-    console.log('🔄 Verifying with PayAI facilitator...');
-
-    try {
-      const facilitatorResponse = await fetch(`${FACILITATOR_URL}/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          network: 'solana',
-          signature: signature,
-          recipient: WALLET_ADDRESS,
-          amount: '0.01',
-          currency: 'USDC',
-          mint: USDC_MINT
-        })
-      });
-
-      const facilitatorData = await facilitatorResponse.json();
-
-      if (facilitatorResponse.ok && facilitatorData.verified) {
-        console.log('✅ Payment verified by facilitator');
-      } else {
-        console.log('⚠️ Facilitator verification inconclusive, using on-chain verification');
-      }
-    } catch (facilitatorError) {
-      console.log('⚠️ Facilitator unavailable, falling back to on-chain verification');
-      console.error('Facilitator error:', facilitatorError.message);
-    }
-
-    // Parse transaction to verify payment details on-chain
-    const postBalances = tx.meta.postTokenBalances || [];
-    const preBalances = tx.meta.preTokenBalances || [];
-
-    // Find USDC token changes
-    let recipientReceived = false;
-    const expectedAmount = 0.01 * Math.pow(10, 6); // 0.01 USDC in lamports
-
-    for (const postBalance of postBalances) {
-      if (postBalance.mint === USDC_MINT) {
-        const preBalance = preBalances.find(
-          pre => pre.accountIndex === postBalance.accountIndex
-        );
-
-        let change = 0;
-
-        if (preBalance) {
-          // Account existed before - calculate change
-          change = parseFloat(postBalance.uiTokenAmount.amount) -
-                   parseFloat(preBalance.uiTokenAmount.amount);
-        } else {
-          // Account was created in this transaction - use post balance as the amount received
-          change = parseFloat(postBalance.uiTokenAmount.amount);
-          console.log('📝 New account created in transaction, balance:', change / Math.pow(10, 6), 'USDC');
-        }
-
-        // Check if this amount matches our expected payment
-        if (change >= expectedAmount * 0.99) { // Allow 1% tolerance
-          recipientReceived = true;
-          console.log('✅ On-chain verification: ', change / Math.pow(10, 6), 'USDC received');
-        }
-      }
-    }
-
-    if (!recipientReceived) {
-      return res.status(400).json({
-        error: 'Payment verification failed',
-        message: 'Payment amount or recipient does not match'
-      });
-    }
-
-    console.log('✅ Payment verified successfully');
-
-    // Generate one-time token for accessing content
-    const token = generatePaymentToken();
-    validTokens.add(token);
-
-    // Token expires after 5 minutes
-    setTimeout(() => {
-      validTokens.delete(token);
-    }, 5 * 60 * 1000);
-
-    res.json({
-      status: 'success',
-      message: 'Payment verified',
-      token: token,
-      redirectUrl: `/content?token=${token}`
-    });
-
-  } catch (error) {
-    console.error('Payment verification error:', error);
-    res.status(500).json({
-      error: 'Payment verification failed',
-      message: error.message
-    });
-  }
-});
-
 
 // Health check endpoint
 app.get('/health', (req, res) => {
