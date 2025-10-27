@@ -18,34 +18,31 @@ Production-ready payment gateway using **x402 protocol** on **Solana blockchain*
 
 ## Quick Deploy to Render.com
 
-### One-Click Deploy
+### 🚀 One-Click Deploy
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ingainer/pay-go)
 
-### Manual Deploy
+The `render.yaml` file automatically configures everything including:
+- ✅ Build command: `npm install`
+- ✅ Start command: `node server.js`
+- ✅ Wallet address: `9dUnZnjJJwRUT5NkK2n5SwYqvuht1QRWsg7J8JX9eGGm`
+- ✅ Network: Solana mainnet-beta
+- ✅ Facilitator URL configured
 
-1. **Fork/Clone this repository**
+**Just click the button and your app will be live in 2-3 minutes!**
 
-2. **Go to [Render.com](https://render.com) and create new Web Service**
+### 📖 Detailed Deployment Guide
 
-3. **Connect your GitHub repository**
+For step-by-step instructions, see **[RENDER_DEPLOY.md](./RENDER_DEPLOY.md)**
 
-4. **Configuration** (auto-detected from `render.yaml`):
-   - Build: `npm install`
-   - Start: `node server.js`
-   - Plan: Free
+### ⚠️ If You See "WALLET_ADDRESS Required" Error
 
-5. **Environment Variables** (already configured in `render.yaml`):
-   ```
-   WALLET_ADDRESS=9dUnZnjJJwRUT5NkK2n5SwYqvuht1QRWsg7J8JX9eGGm
-   SOLANA_NETWORK=mainnet-beta
-   FACILITATOR_URL=https://facilitator.payai.network
-   PORT=10000
-   ```
+The environment variable is in `render.yaml` but Render might need it set manually:
 
-6. **Deploy!**
-
-Your payment gateway will be live at: `https://your-app.onrender.com`
+1. Go to your service in Render dashboard
+2. Click **Environment** tab
+3. Add: `WALLET_ADDRESS` = `9dUnZnjJJwRUT5NkK2n5SwYqvuht1QRWsg7J8JX9eGGm`
+4. Save (auto-redeploys)
 
 ## Local Development
 
