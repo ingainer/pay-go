@@ -269,35 +269,26 @@
             statusMessage.className = 'status-message';
 
             try {
-                // Call payment endpoint
-                const response = await fetch('/api/payment/initiate', {
-                    method: 'GET',
+                // Use demo endpoint for testing (in production, this would connect to Solana wallet)
+                const response = await fetch('/api/payment/demo', {
+                    method: 'POST',
                     headers: {
                         'Accept': 'application/json',
+                        'Content-Type': 'application/json'
                     },
                 });
 
                 const data = await response.json();
 
-                if (response.ok) {
+                if (response.ok && data.status === 'success') {
                     // Payment successful
-                    statusMessage.textContent = '✓ Payment successful! Redirecting...';
+                    statusMessage.textContent = '✓ Payment successful! Redirecting to premium content...';
                     statusMessage.className = 'status-message success';
 
-                    // Redirect to success page
+                    // Redirect to success page with token
                     setTimeout(() => {
-                        window.location.href = data.redirect || '/success';
-                    }, 1500);
-                } else if (response.status === 402) {
-                    // Payment required
-                    statusMessage.textContent = 'Please complete payment with your Solana wallet';
-                    statusMessage.className = 'status-message info';
-
-                    // In production, this would trigger wallet connection
-                    console.log('Payment details:', data.paymentDetails);
-
-                    button.disabled = false;
-                    button.innerHTML = 'Pay Now';
+                        window.location.href = data.redirectUrl;
+                    }, 1000);
                 } else {
                     throw new Error(data.message || 'Payment failed');
                 }
@@ -309,6 +300,18 @@
                 button.innerHTML = 'Pay Now';
             }
         }
+
+        // Check for error parameter on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+
+            if (error === 'payment_required') {
+                const statusMessage = document.getElementById('statusMessage');
+                statusMessage.textContent = '⚠️ Payment required to access content';
+                statusMessage.className = 'status-message error';
+            }
+        });
     </script>
 </body>
 </html>
