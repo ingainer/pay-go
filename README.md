@@ -2,6 +2,14 @@
 
 A production-ready payment page that integrates Solana payments via USDC using the x402 protocol. This application features a clean payment interface with a Pay button that charges 0.01 USDC and redirects to premium content upon successful payment.
 
+## 🚀 One-Click Deploy
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ingainer/pay-go)
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/deploy?referralCode=pay-go)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ingainer/pay-go&env=ADDRESS&envDescription=Your%20Solana%20wallet%20address&envLink=https://github.com/ingainer/pay-go#configuration)
+
 ## Features
 
 - 💎 **Solana USDC Payments**: Accept USDC payments on Solana blockchain
