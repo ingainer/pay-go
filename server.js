@@ -74,30 +74,84 @@ app.get('/content', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'success.html'));
 });
 
-// Get payment details (x402 challenge)
-app.get('/api/payment/challenge', async (req, res) => {
+// Create transaction for payment (backend builds transaction)
+app.post('/api/payment/create-transaction', async (req, res) => {
   try {
-    // Return 402 Payment Required with Solana payment details
-    res.status(402).json({
-      error: 'Payment Required',
-      message: 'Please complete payment to access this resource',
-      paymentDetails: {
-        amount: '0.01',
-        currency: 'USDC',
-        network: SOLANA_NETWORK,
-        recipient: WALLET_ADDRESS,
-        mint: USDC_MINT,
-        facilitator: FACILITATOR_URL
-      },
-      instructions: {
-        step1: 'Connect your Solana wallet (Phantom, Solflare, etc.)',
-        step2: 'Send 0.01 USDC to the recipient address',
-        step3: 'Submit your transaction signature to /api/payment/verify'
-      }
+    const { walletAddress } = req.body;
+
+    if (!walletAddress) {
+      return res.status(400).json({
+        error: 'Missing wallet address',
+        message: 'Wallet address is required'
+      });
+    }
+
+    console.log('🔵 Creating transaction for wallet:', walletAddress);
+
+    const { Connection, PublicKey, Transaction } = require('@solana/web3.js');
+    const { getAssociatedTokenAddress, createTransferInstruction, TOKEN_PROGRAM_ID } = require('@solana/spl-token');
+
+    // Backend handles RPC connection (no frontend 403 errors)
+    const connection = new Connection(
+      SOLANA_NETWORK === 'mainnet-beta'
+        ? 'https://api.mainnet-beta.solana.com'
+        : 'https://api.devnet.solana.com',
+      'confirmed'
+    );
+
+    const senderPublicKey = new PublicKey(walletAddress);
+    const recipientPublicKey = new PublicKey(WALLET_ADDRESS);
+    const usdcMintPublicKey = new PublicKey(USDC_MINT);
+
+    // Get associated token accounts
+    const senderTokenAccount = await getAssociatedTokenAddress(
+      usdcMintPublicKey,
+      senderPublicKey
+    );
+
+    const recipientTokenAccount = await getAssociatedTokenAddress(
+      usdcMintPublicKey,
+      recipientPublicKey
+    );
+
+    // Create transfer instruction for 0.01 USDC (10000 microUSDC)
+    const transferInstruction = createTransferInstruction(
+      senderTokenAccount,
+      recipientTokenAccount,
+      senderPublicKey,
+      10000, // 0.01 USDC = 10000 with 6 decimals
+      [],
+      TOKEN_PROGRAM_ID
+    );
+
+    // Create transaction
+    const transaction = new Transaction().add(transferInstruction);
+    transaction.feePayer = senderPublicKey;
+
+    // Get recent blockhash (backend RPC, no CORS issues)
+    const { blockhash } = await connection.getLatestBlockhash();
+    transaction.recentBlockhash = blockhash;
+
+    // Serialize transaction to send to frontend
+    const serializedTransaction = transaction.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false
+    }).toString('base64');
+
+    console.log('✅ Transaction created successfully');
+
+    res.json({
+      status: 'success',
+      transaction: serializedTransaction,
+      message: 'Transaction ready for signing'
     });
+
   } catch (error) {
-    console.error('Payment challenge error:', error);
-    res.status(500).json({ error: 'Payment challenge failed' });
+    console.error('❌ Transaction creation error:', error);
+    res.status(500).json({
+      error: 'Transaction creation failed',
+      message: error.message
+    });
   }
 });
 

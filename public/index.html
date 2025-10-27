@@ -5,52 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solana USDC Payment Gateway</title>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-    <script>
-        // SPL Token Program helpers for browser
-        window.splToken = {
-            TOKEN_PROGRAM_ID: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
-            ASSOCIATED_TOKEN_PROGRAM_ID: new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'),
-
-            getAssociatedTokenAddress: async function(mint, owner) {
-                const [address] = await solanaWeb3.PublicKey.findProgramAddress(
-                    [
-                        owner.toBuffer(),
-                        this.TOKEN_PROGRAM_ID.toBuffer(),
-                        mint.toBuffer(),
-                    ],
-                    this.ASSOCIATED_TOKEN_PROGRAM_ID
-                );
-                return address;
-            },
-
-            createTransferInstruction: function(source, destination, owner, amount) {
-                const keys = [
-                    { pubkey: source, isSigner: false, isWritable: true },
-                    { pubkey: destination, isSigner: false, isWritable: true },
-                    { pubkey: owner, isSigner: true, isWritable: false }
-                ];
-
-                // Create transfer instruction data
-                // Instruction: 3 (Transfer)
-                // Amount: u64 (8 bytes)
-                const data = new Uint8Array(9);
-                data[0] = 3; // Transfer instruction
-
-                // Write amount as little-endian u64
-                const amountBigInt = BigInt(Math.floor(amount));
-                for (let i = 0; i < 8; i++) {
-                    data[1 + i] = Number((amountBigInt >> BigInt(i * 8)) & BigInt(0xff));
-                }
-
-                return new solanaWeb3.TransactionInstruction({
-                    keys,
-                    programId: this.TOKEN_PROGRAM_ID,
-                    data
-                });
-            }
-        };
-        console.log('✅ SPL Token helpers initialized');
-    </script>
     <style>
         * {
             margin: 0;
@@ -305,11 +259,6 @@
     </div>
 
     <script>
-        const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
-        const RECIPIENT = '9dUnZnjJJwRUT5NkK2n5SwYqvuht1QRWsg7J8JX9eGGm';
-        const AMOUNT_USDC = 0.01; // 0.01 USDC
-        const USDC_DECIMALS = 6;
-
         async function initiatePayment() {
             console.log('🔵 [DEBUG] initiatePayment() called');
             const button = document.getElementById('payButton');
@@ -347,80 +296,50 @@
                 const walletPublicKey = resp.publicKey.toString();
                 console.log('🔵 [DEBUG] Wallet public key:', walletPublicKey);
 
-                statusMessage.textContent = '💳 Wallet connected! Processing payment...';
+                statusMessage.textContent = '💳 Wallet connected! Requesting transaction...';
                 statusMessage.className = 'status-message info';
-                button.innerHTML = '<span class="loader"></span>Sending payment...';
+                button.innerHTML = '<span class="loader"></span>Creating transaction...';
 
-                console.log('🔵 [DEBUG] Creating Solana connection...');
-                // Create connection to Solana
-                const connection = new solanaWeb3.Connection(
-                    'https://api.mainnet-beta.solana.com',
-                    'confirmed'
+                console.log('🔵 [DEBUG] Requesting transaction from backend...');
+                // Request transaction from backend (backend handles RPC)
+                const txResponse = await fetch('/api/payment/create-transaction', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        walletAddress: walletPublicKey
+                    })
+                });
+
+                if (!txResponse.ok) {
+                    const error = await txResponse.json();
+                    throw new Error(error.message || 'Failed to create transaction');
+                }
+
+                const txData = await txResponse.json();
+                console.log('🟢 [SUCCESS] Transaction received from backend');
+
+                statusMessage.textContent = '📝 Please approve transaction in wallet...';
+                button.innerHTML = '<span class="loader"></span>Waiting for approval...';
+
+                console.log('🔵 [DEBUG] Deserializing transaction...');
+                // Deserialize the transaction from backend
+                const transaction = solanaWeb3.Transaction.from(
+                    Buffer.from(txData.transaction, 'base64')
                 );
-                console.log('🟢 [SUCCESS] Solana connection created');
-
-                console.log('🔵 [DEBUG] Creating public keys...');
-                // Get sender's USDC token account
-                const senderPublicKey = new solanaWeb3.PublicKey(walletPublicKey);
-                const recipientPublicKey = new solanaWeb3.PublicKey(RECIPIENT);
-                const usdcMintPublicKey = new solanaWeb3.PublicKey(USDC_MINT);
-                console.log('🔵 [DEBUG] Sender:', senderPublicKey.toString());
-                console.log('🔵 [DEBUG] Recipient:', recipientPublicKey.toString());
-
-                console.log('🔵 [DEBUG] Getting associated token accounts...');
-                // Get associated token accounts
-                const senderTokenAccount = await splToken.getAssociatedTokenAddress(
-                    usdcMintPublicKey,
-                    senderPublicKey
-                );
-                console.log('🔵 [DEBUG] Sender token account:', senderTokenAccount.toString());
-
-                const recipientTokenAccount = await splToken.getAssociatedTokenAddress(
-                    usdcMintPublicKey,
-                    recipientPublicKey
-                );
-                console.log('🔵 [DEBUG] Recipient token account:', recipientTokenAccount.toString());
-
-                console.log('🔵 [DEBUG] Creating transfer instruction...');
-                const transferAmount = AMOUNT_USDC * Math.pow(10, USDC_DECIMALS);
-                console.log('🔵 [DEBUG] Transfer amount (lamports):', transferAmount);
-
-                // Create transfer instruction
-                const transferInstruction = splToken.createTransferInstruction(
-                    senderTokenAccount,
-                    recipientTokenAccount,
-                    senderPublicKey,
-                    transferAmount
-                );
-                console.log('🟢 [SUCCESS] Transfer instruction created');
-
-                console.log('🔵 [DEBUG] Creating transaction...');
-                // Create transaction
-                const transaction = new solanaWeb3.Transaction().add(transferInstruction);
-                transaction.feePayer = senderPublicKey;
-
-                console.log('🔵 [DEBUG] Getting recent blockhash...');
-                // Get recent blockhash
-                const { blockhash } = await connection.getLatestBlockhash();
-                transaction.recentBlockhash = blockhash;
-                console.log('🔵 [DEBUG] Blockhash:', blockhash);
+                console.log('🔵 [DEBUG] Transaction deserialized');
 
                 console.log('🔵 [DEBUG] Requesting signature from wallet...');
-                // Sign and send transaction
-                const signed = await window.solana.signTransaction(transaction);
-                console.log('🟢 [SUCCESS] Transaction signed by wallet');
-
-                console.log('🔵 [DEBUG] Sending transaction to blockchain...');
-                const signature = await connection.sendRawTransaction(signed.serialize());
+                // Sign and send transaction using wallet's connection
+                const { signature } = await window.solana.signAndSendTransaction(transaction);
                 console.log('🟢 [SUCCESS] Transaction sent! Signature:', signature);
 
                 statusMessage.textContent = '⏳ Confirming transaction...';
                 statusMessage.className = 'status-message info';
+                button.innerHTML = '<span class="loader"></span>Confirming...';
 
-                console.log('🔵 [DEBUG] Waiting for confirmation...');
-                // Wait for confirmation
-                await connection.confirmTransaction(signature, 'confirmed');
-                console.log('🟢 [SUCCESS] Transaction confirmed on blockchain!');
+                console.log('🔵 [DEBUG] Transaction sent via wallet, signature:', signature);
 
                 console.log('🔵 [DEBUG] Verifying payment with backend...');
                 // Verify payment with backend
